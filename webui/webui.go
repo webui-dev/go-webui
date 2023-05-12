@@ -16,7 +16,7 @@ package webui
 #cgo darwin LDFLAGS: -L ./ -lwebui-2-static-x64 -lpthread -lm
 #cgo linux LDFLAGS: -L ./ -lwebui-2-static-x64 -lpthread -lm
 #include <webui.h>
-extern void GoWebuiEvent(size_t _window, unsigned int _event_type, char* _element, char* _data, unsigned int _event_number);
+extern void GoWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
 static void GoWebuiEvents_handler(webui_event_t* e) {
     GoWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
 }
@@ -92,7 +92,7 @@ func Ini() {
 // This function receives all events
 //
 //export GoWebuiEvent
-func GoWebuiEvent(window C.size_t, _event_type C.uint, _element *C.char, _data *C.char, _event_number C.uint) {
+func GoWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _event_number C.size_t) {
 	Ini()
 
 	// Create a new event struct
@@ -101,7 +101,7 @@ func GoWebuiEvent(window C.size_t, _event_type C.uint, _element *C.char, _data *
 	var data string = C.GoString(_data)
 	e := Event{
 		Window:    uint(window),
-		EventType: event_type,
+		EventType: uint(event_type),
 		Element:   element,
 		Data:      data,
 	}
@@ -146,7 +146,7 @@ func Script(window uint, js *JavaScript, script string) bool {
 	ptr := (*C.char)(unsafe.Pointer(&ResponseBuffer[0]))
 
 	// Run the JavaScript and wait for response
-	status := C.webui_script(C.size_t(window), c_script, C.uint(js.Timeout), ptr, C.size_t(uint64(js.BufferSize)))
+	status := C.webui_script(C.size_t(window), c_script, C.size_t(js.Timeout), ptr, C.size_t(uint64(js.BufferSize)))
 
 	// Copy the response to the users struct
 	ResponseLen := bytes.IndexByte(ResponseBuffer[:], 0)
@@ -173,7 +173,7 @@ func Run(window uint, script string) {
 func SetRuntime(window uint, runtime uint) {
 	Ini()
 
-	C.webui_set_runtime(C.size_t(window), C.uint(runtime))
+	C.webui_set_runtime(C.size_t(window), C.size_t(runtime))
 }
 
 // Create a new window object
@@ -205,7 +205,7 @@ func Close(window uint) {
 func SetTimeout(seconds uint) {
 	Ini()
 
-	C.webui_set_timeout(C.uint(seconds))
+	C.webui_set_timeout(C.size_t(seconds))
 }
 
 // Allow the window URL to be re-used in normal web browsers
@@ -235,7 +235,7 @@ func ShowBrowser(window uint, content string, browser uint) {
 	Ini()
 
 	c_content := C.CString(content)
-	C.webui_show_browser(C.size_t(window), c_content, C.uint(browser))
+	C.webui_show_browser(C.size_t(window), c_content, C.size_t(browser))
 }
 
 // Wait until all opened windows get closed.
