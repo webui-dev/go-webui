@@ -61,7 +61,7 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 
 ## Documentation
 
-*In progess*
+ - [Online Documentation - Go](https://pkg.go.dev/github.com/webui-dev/go-webui/webui)
 
 ## Examples
 
