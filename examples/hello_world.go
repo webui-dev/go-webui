@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/alifcommunity/webui/webui"
+	"github.com/webui-dev/webui/webui"
 )
 
 const login_html string = `<!DOCTYPE html>
