@@ -1,3 +1,3 @@
-module github.com/alifcommunity/webui
+module github.com/webui-dev/webui
 
 go 1.20
