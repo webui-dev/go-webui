@@ -123,4 +123,4 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 
 ### Stargazers
 
-[![Stargazers repo roster for @webui-dev/webui](https://reporoster.com/stars/webui-dev/webui)](https://github.com/webui-dev/webui/stargazers)
+[![Stargazers repo roster for @webui-dev/go-webui](https://reporoster.com/stars/webui-dev/go-webui)](https://github.com/webui-dev/go-webui/stargazers)
