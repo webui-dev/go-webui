@@ -1,31 +1,50 @@
 # WebUI Go v2.3.0
 
-[![Website](https://img.shields.io/circleci/project/github/badges/shields/master?style=for-the-badge)](https://github.com/webui-dev/webui) [![Website](https://img.shields.io/github/issues/webui-dev/go-webui.svg?branch=master&style=for-the-badge&url=https://google.com)](https://github.com/webui-dev/webui/issues) [![Website](https://img.shields.io/website?label=webui.me&style=for-the-badge&url=https://google.com)](https://webui.me/)
+[![Website](https://img.shields.io/circleci/project/github/badges/shields/master?style=for-the-badge)](https://github.com/webui-dev/go-webui) [![Website](https://img.shields.io/github/issues/webui-dev/go-webui.svg?branch=master&style=for-the-badge&url=https://google.com)](https://github.com/webui-dev/go-webui/issues) [![Website](https://img.shields.io/website?label=webui.me&style=for-the-badge&url=https://google.com)](https://webui.me/)
 
-> Use any web browser as GUI, with Go in the backend and HTML5 in the frontend, all in a lightweight Go package.
+> Use any web browser as GUI, with Go in the backend and HTML5 in the frontend, all in a lightweight Go module.
 
 ![ScreenShot](screenshot.png)
 
-> :warning: **Notice**:
-> 
-> * WebUI it's not a web-server solution or a framework, but it's an lightweight portable Go package to use any installed web browser as a user interface.
-> 
-> * We are currently writing documentation.
-
 ## Features
 
-- Original library written in Pure C
 - Fully Independent (*No need for any third-party runtimes*)
 - Lightweight *~900 Kb* for the whole package & Small memory footprint
 - Fast binary communication protocol between WebUI and the browser (*Instead of JSON*)
 - Multi-platform & Multi-Browser
 - Using private profile for safety
+- Original library written in Pure C
 
 ## Screenshot
 
-This [text editor example](https://github.com/webui.dev/webui/tree/main/examples/C/text-editor) is written in Go using WebUI as the GUI library.
+This [text editor example](https://github.com/webui-dev/go-webui/tree/main/examples) is written in Go using WebUI as the GUI library.
 
 ![ScreenShot](webui_go_example.png)
+
+## Installation
+
+`go install github.com/webui-dev/go-webui@latest`
+
+## Minimal Example
+
+```go
+package main
+
+import "github.com/webui-dev/go-webui"
+
+func main() {
+
+	var my_window = webui.NewWindow()
+	webui.Show(my_window, "<html>Hello World</html>")
+	webui.Wait()
+}
+```
+
+[More examples](https://github.com/webui-dev/go-webui/tree/main/examples)
+
+## Documentation
+
+ - [Online Documentation](https://webui.me/docs/#/go_api)
 
 ## CppCon 2019 Presentation
 
@@ -58,14 +77,6 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 | Runtime Dependencies on Windows | *WebView2* | *QtCore, QtGui, QtWidgets* | ***A Web Browser*** |
 | Runtime Dependencies on Linux | *GTK3, WebKitGTK* | *QtCore, QtGui, QtWidgets* | ***A Web Browser*** |
 | Runtime Dependencies on macOS | *Cocoa, WebKit* | *QtCore, QtGui, QtWidgets* | ***A Web Browser*** |
-
-## Documentation
-
- - [Online Documentation - Go](https://pkg.go.dev/github.com/webui-dev/go-webui/webui)
-
-## Examples
-
- - [Go](./examples/)
 
 ## Supported Web Browsers
 
@@ -106,16 +117,14 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 
 | Language | Status | Link |
 | ------ | ------ | ------ |
-| C | ✔️ | [examples/C](https://github.com/alifcommunity/webui/tree/main/examples/C) |
-| C++ |  ✔️ | [examples/C++](https://github.com/alifcommunity/webui/tree/main/examples/C%2B%2B) |
-| Python | ✔️ | [examples/Python](https://github.com/alifcommunity/webui/tree/main/examples/Python) |
-| JavaScript | ✔️ | [examples/TypeScript/Nodejs](https://github.com/alifcommunity/webui/tree/main/examples/TypeScript/Nodejs) |
-| TypeScript | ✔️ | [examples/TypeScript/Deno](https://github.com/alifcommunity/webui/tree/main/examples/TypeScript/Deno) |
-| Go | ✔️ | [examples/Go](https://github.com/alifcommunity/webui/tree/main/examples/Go) |
-| Rust | *Not Complete* | [examples/Rust](https://github.com/alifcommunity/webui/tree/main/examples/Rust) |
-| V | ✔️ | [malisipi/vwebui](https://github.com/malisipi/vwebui) |
-| Nim | *Not Complete* | [neroist/webui](https://github.com/neroist/webui) |
-| Zig | *Not Complete* | [desttinghim/webui](https://github.com/desttinghim/webui) |
+| C/C++ | ✔️ | [WebUI](https://github.com/webui-dev/webui) |
+| Python | ✔️ | [Python-WebUI](https://github.com/webui-dev/python-webui) |
+| TypeScript / JavaScript | ✔️ | [Deno-WebUI](https://github.com/webui-dev/deno-webui) |
+| Go | ✔️ | [Go-WebUI](https://github.com/webui-dev/go-webui) |
+| Rust | *Not Complete* | [Rust-WebUI](https://github.com/webui-dev/rust-webui) |
+| V | ✔️ | [V-WebUI](https://github.com/webui-dev/v-webui) |
+| Nim | ✔️ | [Nim-WebUI](https://github.com/webui-dev/nim-webui) |
+| Zig | *Not Complete* | [Zig-WebUI](https://github.com/webui-dev/zig-webui) |
 
 ### License
 
