@@ -169,6 +169,18 @@ func Run(window uint, script string) {
 	C.webui_run(C.size_t(window), c_script)
 }
 
+func Encode(str string) string {
+	Ini()
+
+	return string(C.webui_encode(C.CString(str)))
+}
+
+func Decode(str string) string {
+	Ini()
+
+	return string(C.webui_decode(C.CString(str)))
+}
+
 // Chose between Deno and Nodejs runtime for .js and .ts files.
 func SetRuntime(window uint, runtime uint) {
 	Ini()
