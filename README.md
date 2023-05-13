@@ -30,10 +30,7 @@ This [text editor example](https://github.com/webui-dev/go-webui/tree/main/examp
 ```go
 package main
 
-import (
-	"fmt"
-	"github.com/webui-dev/go-webui"
-)
+import "github.com/webui-dev/go-webui"
 
 func main() {
 
@@ -122,7 +119,7 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 | ------ | ------ | ------ |
 | C/C++ | ✔️ | [WebUI](https://github.com/webui-dev/webui) |
 | Python | ✔️ | [Python-WebUI](https://github.com/webui-dev/python-webui) |
-| TypeScript / JavaScript | ✔️ | [Deno](https://github.com/webui-dev/deno-webui) |
+| TypeScript / JavaScript | ✔️ | [Deno-WebUI](https://github.com/webui-dev/deno-webui) |
 | Go | ✔️ | [Go-WebUI](https://github.com/webui-dev/go-webui) |
 | Rust | *Not Complete* | [Rust-WebUI](https://github.com/webui-dev/rust-webui) |
 | V | ✔️ | [V-WebUI](https://github.com/webui-dev/v-webui) |

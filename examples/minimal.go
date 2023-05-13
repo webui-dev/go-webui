@@ -1,9 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"github.com/webui-dev/go-webui"
-)
+import "github.com/webui-dev/go-webui"
 
 func main() {
 
