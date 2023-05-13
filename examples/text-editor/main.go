@@ -33,7 +33,7 @@ func Open(e webui.Event) string {
 
 	filename, err := dialog.File().Load()
 
-	if err == dialog.Cancelled{
+	if err == dialog.Cancelled {
 		return ""
 	}
 
