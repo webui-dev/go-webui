@@ -172,13 +172,23 @@ func Run(window uint, script string) {
 func Encode(str string) string {
 	Ini()
 
-	return string(C.webui_encode(C.CString(str)))
+	c_encode := C.webui_encode(C.CString(str))
+	go_encode := C.GoString(c_encode)
+
+	//C.free(unsafe.Pointer(c_encode))
+
+	return go_encode
 }
 
 func Decode(str string) string {
 	Ini()
 
-	return string(C.webui_decode(C.CString(str)))
+	c_decode := C.webui_decode(C.CString(str))
+	go_decode := C.GoString(c_decode)
+
+	//C.free(unsafe.Pointer(c_decode))
+
+	return go_decode
 }
 
 // Chose between Deno and Nodejs runtime for .js and .ts files.
