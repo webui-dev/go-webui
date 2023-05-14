@@ -37,7 +37,14 @@ func Open(e webui.Event) string {
 		return ""
 	}
 
-	content, _ := os.ReadFile(filename)
+	content, err := os.ReadFile(filename)
+
+	if err != nil {
+		fmt.Println("Error reading file ", filename)
+		fmt.Println("Error: ", err)
+
+		return ""
+	}
 	
 	filePath = filename
 
