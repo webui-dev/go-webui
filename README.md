@@ -23,7 +23,9 @@ This [text editor example](https://github.com/webui-dev/go-webui/tree/main/examp
 
 ## Installation
 
-`go install github.com/webui-dev/go-webui@latest`
+```sh
+go install github.com/webui-dev/go-webui@2.3.0.1
+```
 
 ## Minimal Example
 
