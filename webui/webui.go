@@ -1,3 +1,5 @@
+package webui
+
 /*
   WebUI Library 2.3.0
   http://_webui_core.me
@@ -8,17 +10,15 @@
   Canada.
 */
 
-package webui
-
 /*
 #cgo CFLAGS: -I ./
 #cgo windows LDFLAGS: -L ./ -lwebui-2-static-x64-windows -lws2_32
 #cgo darwin LDFLAGS: -L ./ -lwebui-2-static-x64-macos -lpthread -lm
 #cgo linux LDFLAGS: -L ./ -lwebui-2-static-x64-linux -lpthread -lm
 #include <webui.h>
-extern void GoWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
+extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
 static void GoWebuiEvents_handler(webui_event_t* e) {
-    GoWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
+    goWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
 }
 static void go_webui_bind(size_t win, const char* element) {
     webui_bind(win, element, GoWebuiEvents_handler);
@@ -81,7 +81,7 @@ type JavaScript struct {
 }
 
 // Initilializing
-func Ini() {
+func iniModule() {
 	if isIni {
 		return
 	}
@@ -89,11 +89,11 @@ func Ini() {
 	fun_list = make(map[string]func(Event) string)
 }
 
-// This function receives all events
+// This private function receives all events
 //
-//export GoWebuiEvent
-func GoWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _event_number C.size_t) {
-	Ini()
+//export goWebuiEvent
+func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _event_number C.size_t) {
+	iniModule()
 
 	// Create a new event struct
 	var event_type uint = uint(_event_type)
@@ -122,7 +122,7 @@ func GoWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 
 // JavaScript object constructor
 func NewJavaScript() JavaScript {
-	Ini()
+	iniModule()
 
 	js := JavaScript{
 		Timeout:    0,
@@ -134,7 +134,7 @@ func NewJavaScript() JavaScript {
 
 // Run a JavaScript, and get the response back (Make sure your local buffer can hold the response).
 func Script(window uint, js *JavaScript, script string) bool {
-	Ini()
+	iniModule()
 
 	// Convert the JavaScript from Go-String to C-String
 	c_script := C.CString(script)
@@ -160,7 +160,7 @@ func Script(window uint, js *JavaScript, script string) bool {
 
 // Run JavaScript quickly with no waiting for the response.
 func Run(window uint, script string) {
-	Ini()
+	iniModule()
 
 	// Convert the JavaScript from Go-String to C-String
 	c_script := C.CString(script)
@@ -170,7 +170,7 @@ func Run(window uint, script string) {
 }
 
 func Encode(str string) string {
-	Ini()
+	iniModule()
 
 	c_encode := C.webui_encode(C.CString(str))
 	go_encode := C.GoString(c_encode)
@@ -181,7 +181,7 @@ func Encode(str string) string {
 }
 
 func Decode(str string) string {
-	Ini()
+	iniModule()
 
 	c_decode := C.webui_decode(C.CString(str))
 	go_decode := C.GoString(c_decode)
@@ -193,14 +193,14 @@ func Decode(str string) string {
 
 // Chose between Deno and Nodejs runtime for .js and .ts files.
 func SetRuntime(window uint, runtime uint) {
-	Ini()
+	iniModule()
 
 	C.webui_set_runtime(C.size_t(window), C.size_t(runtime))
 }
 
 // Create a new window object
 func NewWindow() uint {
-	Ini()
+	iniModule()
 
 	// Create a new window object
 	// this return a (size_t) and we should
@@ -210,7 +210,7 @@ func NewWindow() uint {
 
 // Check a specific window if it's still running
 func IsShown(window uint) bool {
-	Ini()
+	iniModule()
 
 	status := C.webui_is_shown(C.size_t(window))
 	return bool(status)
@@ -218,35 +218,35 @@ func IsShown(window uint) bool {
 
 // Close a specific window.
 func Close(window uint) {
-	Ini()
+	iniModule()
 
 	C.webui_close(C.size_t(window))
 }
 
 // Set the maximum time in seconds to wait for browser to start
 func SetTimeout(seconds uint) {
-	Ini()
+	iniModule()
 
 	C.webui_set_timeout(C.size_t(seconds))
 }
 
 // Allow the window URL to be re-used in normal web browsers
 func SetMultiAccess(window uint, access bool) {
-	Ini()
+	iniModule()
 
 	C.webui_set_multi_access(C.size_t(window), C._Bool(access))
 }
 
 // Close all opened windows
 func Exit() {
-	Ini()
+	iniModule()
 
 	C.webui_exit()
 }
 
 // Show a window using a embedded HTML, or a file. If the window is already opened then it will be refreshed.
 func Show(window uint, content string) {
-	Ini()
+	iniModule()
 
 	c_content := C.CString(content)
 	C.webui_show(C.size_t(window), c_content)
@@ -254,7 +254,7 @@ func Show(window uint, content string) {
 
 // Same as Show(). But with a specific web browser.
 func ShowBrowser(window uint, content string, browser uint) {
-	Ini()
+	iniModule()
 
 	c_content := C.CString(content)
 	C.webui_show_browser(C.size_t(window), c_content, C.size_t(browser))
@@ -262,14 +262,14 @@ func ShowBrowser(window uint, content string, browser uint) {
 
 // Wait until all opened windows get closed.
 func Wait() {
-	Ini()
+	iniModule()
 
 	C.webui_wait()
 }
 
 // Bind a specific html element click event with a function. Empty element means all events.
 func Bind(window uint, element string, callback func(Event) string) {
-	Ini()
+	iniModule()
 
 	// Convert element from Go-String to C-String
 	c_element := C.CString(element)
