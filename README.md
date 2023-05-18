@@ -24,7 +24,7 @@ This [text editor example](https://github.com/webui-dev/go-webui/tree/main/examp
 ## Installation
 
 ```sh
-go install github.com/webui-dev/go-webui@2.3.0.1
+go get github.com/webui-dev/go-webui/v2@latest
 ```
 
 ## Minimal Example
@@ -32,7 +32,7 @@ go install github.com/webui-dev/go-webui@2.3.0.1
 ```go
 package main
 
-import "github.com/webui-dev/go-webui"
+import "github.com/webui-dev/go-webui/v2"
 
 func main() {
 

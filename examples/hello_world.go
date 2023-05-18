@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/webui-dev/go-webui"
+	"github.com/webui-dev/go-webui/v2"
 )
 
 const login_html string = `<!DOCTYPE html>

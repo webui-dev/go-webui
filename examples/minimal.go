@@ -1,6 +1,6 @@
 package main
 
-import "github.com/webui-dev/go-webui"
+import "github.com/webui-dev/go-webui/v2"
 
 func main() {
 	var my_window = webui.NewWindow()

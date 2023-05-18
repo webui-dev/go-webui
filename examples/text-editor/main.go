@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/sqweek/dialog"
-	"github.com/webui-dev/go-webui"
+	"github.com/webui-dev/go-webui/v2"
 )
 
 var filePath string = ""
