@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/webui-dev/go-webui/webui"
-	"github.com/sqweek/dialog"  
+	"github.com/sqweek/dialog"
+	"github.com/webui-dev/go-webui"
 )
 
 var filePath string = ""
@@ -45,7 +45,7 @@ func Open(e webui.Event) string {
 
 		return ""
 	}
-	
+
 	filePath = filename
 
 	webui.Run(e.Window, fmt.Sprintf("addText('%s')", b64.StdEncoding.EncodeToString([]byte(content))))
@@ -54,7 +54,7 @@ func Open(e webui.Event) string {
 	return ""
 }
 
-func main () {
+func main() {
 	window := webui.NewWindow()
 
 	webui.Bind(window, "Open", Open)
