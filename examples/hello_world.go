@@ -10,6 +10,7 @@ const login_html string = `<!DOCTYPE html>
 <html>
   <head>
     <title>WebUI 2 - Go Example</title>
+    <script src="/webui.js"></script>
     <style>
       body {
         color: white;
@@ -37,6 +38,7 @@ const dashboard_html string = `<!DOCTYPE html>
 <html>
   <head>
     <title>Dashboard</title>
+    <script src="/webui.js"></script>
     <style>
       body {
         color: white;
@@ -55,7 +57,7 @@ const dashboard_html string = `<!DOCTYPE html>
     Call Secret() function and get the response
     <br>
     <br>
-    <button OnClick="webui_fn('Sec').then((response) => { alert('Response is ' + response) });">Secret</button>
+    <button OnClick="webui.call('Sec').then((response) => { alert('Response is ' + response) });">Secret</button>
     <br>
     <br>
     <button id="Exit">Exit</button>

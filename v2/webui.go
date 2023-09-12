@@ -1,9 +1,9 @@
 package webui
 
 /*
-  WebUI Library 2.3.0
-  http://_webui_core.me
-  https://github.com/webui-dev/go-webui
+  WebUI Library 2.4.0
+  http://webui.me
+  https://github.com/webui-dev/webui
   Copyright (c) 2020-2023 Hassan Draga.
   Licensed under MIT License.
   All rights reserved.
@@ -12,9 +12,9 @@ package webui
 
 /*
 #cgo CFLAGS: -I ./
-#cgo windows LDFLAGS: -L ./ -lwebui-2-static-x64-windows -lws2_32
-#cgo darwin LDFLAGS: -L ./ -lwebui-2-static-x64-macos -lpthread -lm
-#cgo linux LDFLAGS: -L ./ -lwebui-2-static-x64-linux -lpthread -lm
+#cgo windows LDFLAGS: -L ./webui-windows-gcc-x64 -lwebui-2-static -lws2_32
+#cgo darwin LDFLAGS: -L ./webui-macos-clang-x64 -lwebui-2-static -lpthread -lm
+#cgo linux LDFLAGS: -L ./webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
 #include <webui.h>
 extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
 static void GoWebuiEvents_handler(webui_event_t* e) {
