@@ -28,6 +28,7 @@ import "C"
 
 import (
 	"bytes"
+	"log"
 	"strconv"
 	"unsafe"
 )
@@ -67,12 +68,14 @@ const WEBUI_EVENT_CALLBACK uint = 6            // 6. Function call event
 
 type Window uint
 
+type Data string
+
 // Events struct
 type Event struct {
 	Window    Window
 	EventType uint
 	Element   string
-	Data      string
+	Data      Data
 }
 
 // JavaScript struct
@@ -105,7 +108,7 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 		Window:    Window(window),
 		EventType: uint(event_type),
 		Element:   element,
-		Data:      data,
+		Data:      Data(data),
 	}
 
 	// Call user callback function
@@ -285,4 +288,24 @@ func (w Window) Bind(element string, callback func(Event) string) {
 
 	// Add the user callback function to the list
 	fun_list[func_id] = callback
+}
+
+func (d Data) String() string {
+	return string(d)
+}
+
+func (d Data) Int() int {
+	num, err := strconv.Atoi(string(d))
+	if err != nil {
+		log.Println("Failed getting event int argument", err)
+	}
+	return num
+}
+
+func (d Data) Bool() bool {
+	boolVal, err := strconv.ParseBool(string(d))
+	if err != nil {
+		log.Println("Failed getting event bool argument", err)
+	}
+	return boolVal
 }
