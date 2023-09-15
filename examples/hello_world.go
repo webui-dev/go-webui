@@ -81,7 +81,7 @@ func Check(e webui.Event) string {
 	js := webui.NewJavaScript()
 
 	// Run the script
-	if !webui.Script(e.Window, &js, "return document.getElementById('MyInput').value;") {
+	if !e.Window.Script(&js, "return document.getElementById('MyInput').value;") {
 
 		// There is an error in our script
 		fmt.Printf("JavaScript Error: %s\n", js.Response)
@@ -92,9 +92,9 @@ func Check(e webui.Event) string {
 
 	// Check the password
 	if js.Response == "123456" {
-		webui.Show(e.Window, dashboard_html)
+		e.Window.Show(dashboard_html)
 	} else {
-		webui.Script(e.Window, &js, "document.getElementById('err').innerHTML = 'Sorry. Wrong password';")
+		e.Window.Script(&js, "document.getElementById('err').innerHTML = 'Sorry. Wrong password';")
 	}
 
 	return ""
@@ -103,15 +103,15 @@ func Check(e webui.Event) string {
 func main() {
 
 	// New window
-	var my_window = webui.NewWindow()
+	var w = webui.NewWindow()
 
 	// Bind
-	webui.Bind(my_window, "CheckPassword", Check)
-	webui.Bind(my_window, "Sec", Secret)
-	webui.Bind(my_window, "Exit", Exit)
+	w.Bind("CheckPassword", Check)
+	w.Bind("Sec", Secret)
+	w.Bind("Exit", Exit)
 
 	// Show window
-	webui.Show(my_window, login_html)
+	w.Show(login_html)
 
 	// Loop
 	webui.Wait()
