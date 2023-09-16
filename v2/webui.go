@@ -17,11 +17,11 @@ package webui
 #cgo linux LDFLAGS: -L ./webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
 #include <webui.h>
 extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
-static void GoWebuiEvents_handler(webui_event_t* e) {
-    goWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
+static void go_webui_event_handler(webui_event_t* e) {
+	goWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
 }
 static void go_webui_bind(size_t win, const char* element) {
-    webui_bind(win, element, GoWebuiEvents_handler);
+	webui_bind(win, element, go_webui_event_handler);
 }
 */
 import "C"
@@ -125,9 +125,6 @@ func NewJavaScript() JavaScript {
 
 // Run a JavaScript, and get the response back (Make sure your local buffer can hold the response).
 func (w Window) Script(js *JavaScript, script string) bool {
-	// Convert the JavaScript from Go-String to C-String
-	c_script := C.CString(script)
-
 	// Create a local buffer to hold the response
 	ResponseBuffer := make([]byte, uint64(js.BufferSize))
 
@@ -135,7 +132,7 @@ func (w Window) Script(js *JavaScript, script string) bool {
 	ptr := (*C.char)(unsafe.Pointer(&ResponseBuffer[0]))
 
 	// Run the JavaScript and wait for response
-	status := C.webui_script(C.size_t(w), c_script, C.size_t(js.Timeout), ptr, C.size_t(uint64(js.BufferSize)))
+	status := C.webui_script(C.size_t(w), C.CString(script), C.size_t(js.Timeout), ptr, C.size_t(uint64(js.BufferSize)))
 
 	// Copy the response to the users struct
 	ResponseLen := bytes.IndexByte(ResponseBuffer[:], 0)
@@ -149,29 +146,15 @@ func (w Window) Script(js *JavaScript, script string) bool {
 
 // Run JavaScript quickly with no waiting for the response.
 func (w Window) Run(script string) {
-	// Convert the JavaScript from Go-String to C-String
-	c_script := C.CString(script)
-
-	// Run the JavaScript
-	C.webui_run(C.size_t(w), c_script)
+	C.webui_run(C.size_t(w), C.CString(script))
 }
 
 func Encode(str string) string {
-	c_encode := C.webui_encode(C.CString(str))
-	go_encode := C.GoString(c_encode)
-
-	//C.free(unsafe.Pointer(c_encode))
-
-	return go_encode
+	return C.GoString(C.webui_encode(C.CString(str)))
 }
 
 func Decode(str string) string {
-	c_decode := C.webui_decode(C.CString(str))
-	go_decode := C.GoString(c_decode)
-
-	//C.free(unsafe.Pointer(c_decode))
-
-	return go_decode
+	return C.GoString(C.webui_decode(C.CString(str)))
 }
 
 // Chose between Deno and Nodejs runtime for .js and .ts files.
@@ -212,14 +195,12 @@ func Exit() {
 
 // Show a window using a embedded HTML, or a file. If the window is already opened then it will be refreshed.
 func (w Window) Show(content string) {
-	c_content := C.CString(content)
-	C.webui_show(C.size_t(w), c_content)
+	C.webui_show(C.size_t(w), C.CString(content))
 }
 
 // Same as Show(). But with a specific web browser.
 func (w Window) ShowBrowser(content string, browser uint) {
-	c_content := C.CString(content)
-	C.webui_show_browser(C.size_t(w), c_content, C.size_t(browser))
+	C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser))
 }
 
 // Wait until all opened windows get closed.
