@@ -282,11 +282,8 @@ func (w Window) Bind(element string, callback func(Event) any) {
 	c_element := C.CString(element)
 	C.go_webui_bind(C.size_t(w), c_element)
 
-	// Get the window ID
-	var window_id uint = uint(C.webui_interface_get_window_id(C.size_t(w)))
-
 	// Generate a unique ID for this element
-	var func_id string = strconv.Itoa(int(window_id)) + element
+	var func_id string = strconv.Itoa(int(w)) + element
 
 	// Add the user callback function to the list
 	fun_list[func_id] = callback
