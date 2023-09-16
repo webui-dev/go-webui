@@ -28,6 +28,7 @@ import "C"
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"strconv"
 	"unsafe"
@@ -37,7 +38,7 @@ import (
 var isIni bool = false
 
 // User Go Callback Functions list
-var fun_list map[string]func(Event) string
+var fun_list map[string]func(Event) any
 
 // Web browsers enum
 const AnyBrowser uint = 0 // 0. Default recommended web browser
@@ -91,7 +92,7 @@ func iniModule() {
 		return
 	}
 	isIni = true
-	fun_list = make(map[string]func(Event) string)
+	fun_list = make(map[string]func(Event) any)
 }
 
 // This private function receives all events
@@ -111,13 +112,17 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 
 	// Call user callback function
 	func_id := strconv.Itoa(int(window)) + element
-	response := fun_list[func_id](e)
-
-	// Set the response back
-	if len(response) > 0 {
-		c_response := C.CString(response)
-		C.webui_interface_set_response(window, _event_number, c_response)
+	result := fun_list[func_id](e)
+	if result == nil {
+		return
 	}
+
+	jsonRes, err := json.Marshal(result)
+	if err != nil {
+		log.Println("Failed encoding JS result into JSON", err)
+	}
+
+	C.webui_interface_set_response(window, _event_number, C.CString(string(jsonRes)))
 }
 
 // -- Public APIs --
@@ -270,7 +275,7 @@ func Wait() {
 }
 
 // Bind a specific html element click event with a function. Empty element means all events.
-func (w Window) Bind(element string, callback func(Event) string) {
+func (w Window) Bind(element string, callback func(Event) any) {
 	iniModule()
 
 	// Convert element from Go-String to C-String
