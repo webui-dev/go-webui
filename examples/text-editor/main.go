@@ -11,24 +11,24 @@ import (
 
 var filePath string = ""
 
-func Close(_ webui.Event) string {
+func Close(_ webui.Event) any {
 	fmt.Println("Exit.")
 
 	webui.Exit()
 
-	return ""
+	return nil
 
 }
 
-func Save(e webui.Event) string {
+func Save(e webui.Event) any {
 	println("Save.")
 
 	os.WriteFile(filePath, []byte(e.Data), 0644)
 
-	return ""
+	return nil
 }
 
-func Open(e webui.Event) string {
+func Open(e webui.Event) any {
 	fmt.Println("Open.")
 
 	filename, err := dialog.File().Load()
@@ -42,26 +42,25 @@ func Open(e webui.Event) string {
 	if err != nil {
 		fmt.Println("Error reading file ", filename)
 		fmt.Println("Error: ", err)
-
-		return ""
+		return nil
 	}
 
 	filePath = filename
 
-	webui.Run(e.Window, fmt.Sprintf("addText('%s')", b64.StdEncoding.EncodeToString([]byte(content))))
-	webui.Run(e.Window, fmt.Sprintf("SetFile('%s')", b64.StdEncoding.EncodeToString([]byte(filename))))
+	e.Window.Run(fmt.Sprintf("addText('%s')", b64.StdEncoding.EncodeToString([]byte(content))))
+	e.Window.Run(fmt.Sprintf("SetFile('%s')", b64.StdEncoding.EncodeToString([]byte(filename))))
 
-	return ""
+	return nil
 }
 
 func main() {
-	window := webui.NewWindow()
+	w := webui.NewWindow()
 
-	webui.Bind(window, "Open", Open)
-	webui.Bind(window, "Save", Save)
-	webui.Bind(window, "Close", Close)
+	w.Bind("Open", Open)
+	w.Bind("Save", Save)
+	w.Bind("Close", Close)
 
-	webui.Show(window, "ui/MainWindow.html")
+	w.Show("ui/MainWindow.html")
 
 	webui.Wait()
 }
