@@ -10,7 +10,7 @@ const login_html string = `<!DOCTYPE html>
 <html>
   <head>
     <title>WebUI 2 - Go Example</title>
-    <script src="/webui.js"></script>
+    <script src="webui.js"></script>
     <style>
       body {
         color: white;
@@ -100,19 +100,18 @@ func Check(e webui.Event) any {
 }
 
 func main() {
+	// Create a new window.
+	w := webui.NewWindow()
 
-	// New window
-	var w = webui.NewWindow()
-
-	// Bind
+	// Bind go functions.
 	w.Bind("CheckPassword", Check)
 	w.Bind("Sec", Secret)
 	w.Bind("Exit", Exit)
 
-	// Show window
+	// Show html UI.
 	w.Show(login_html)
 
-	// Loop
+	// Wait until all windows get closed.
 	webui.Wait()
 
 	fmt.Println("Thank you.")

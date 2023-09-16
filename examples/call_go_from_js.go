@@ -10,6 +10,7 @@ const doc = `<!DOCTYPE html>
 <html>
 	<head>
 		<title>Call Go from JavaScript Example</title>
+		<script src="webui.js"></script>
 		<style>
 			body {
 				background: linear-gradient(to left, #36265a, #654da9);
@@ -22,13 +23,11 @@ const doc = `<!DOCTYPE html>
 				margin: 5px 0 10px;
 			}
 		</style>
-		<!-- Connect this window to WebUI -->
-		<script src="webui.js"></script>
 	</head>
 	<body>
-		<h1>WebUI - Call V from JavaScript</h1>
+		<h1>WebUI - Call Go from JavaScript</h1>
 		<br>
-		<p>Call V functions with arguments (<em>See the logs in your terminal</em>)</p>
+		<p>Call Go functions with arguments (<em>See the logs in your terminal</em>)</p>
 		<button onclick="webui.call('MyID_One', 'Hello');">Call my_function_string()</button>
 		<br>
 		<button onclick="webui.call('MyID_Two', 123456789);">Call my_function_integer()</button>
@@ -95,18 +94,18 @@ func myFunctionWithResponse(e webui.Event) any {
 }
 
 func main() {
-	// New window
+	// Create a new window.
 	w := webui.NewWindow()
 
-	// Bind
+	// Bind go functions.
 	w.Bind("MyID_One", myFunctionString)
 	w.Bind("MyID_Two", myFunctionInteger)
 	w.Bind("MyID_Three", myFunctionBoolean)
 	w.Bind("MyID_Four", myFunctionWithResponse)
 
-	// Show window
+	// Show html UI.
 	w.Show(doc)
 
-	// Wait until all windows get closed
+	// Wait until all windows get closed.
 	webui.Wait()
 }
