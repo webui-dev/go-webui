@@ -20,8 +20,8 @@ extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, cha
 static void go_webui_event_handler(webui_event_t* e) {
 	goWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
 }
-static void go_webui_bind(size_t win, const char* element) {
-	webui_bind(win, element, go_webui_event_handler);
+static size_t go_webui_bind(size_t win, const char* element) {
+	return webui_bind(win, element, go_webui_event_handler);
 }
 */
 import "C"
@@ -65,7 +65,6 @@ type Window uint
 
 type Data string
 
-// Events struct
 type Event struct {
 	Window    Window
 	EventType uint
@@ -73,7 +72,6 @@ type Event struct {
 	Data      Data
 }
 
-// JavaScript struct
 type JavaScript struct {
 	Timeout    uint
 	BufferSize uint
@@ -81,33 +79,29 @@ type JavaScript struct {
 }
 
 // User Go Callback Functions list
-var funcList = make(map[string]func(Event) any)
+var funcList = make(map[Window]map[uint]func(Event) any)
 
 // This private function receives all events
 //
 //export goWebuiEvent
 func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _event_number C.size_t) {
 	// Create a new event struct
-	element := C.GoString(_element)
 	e := Event{
 		Window:    Window(window),
 		EventType: uint(_event_type),
-		Element:   element,
+		Element:   C.GoString(_element),
 		Data:      Data(C.GoString(_data)),
 	}
-
 	// Call user callback function
-	func_id := strconv.Itoa(int(window)) + element
-	result := funcList[func_id](e)
+	funcId := uint(C.webui_interface_get_bind_id(window, _element))
+	result := funcList[Window(window)][funcId](e)
 	if result == nil {
 		return
 	}
-
 	jsonRes, err := json.Marshal(result)
 	if err != nil {
 		log.Println("Failed encoding JS result into JSON", err)
 	}
-
 	C.webui_interface_set_response(window, _event_number, C.CString(string(jsonRes)))
 }
 
@@ -164,7 +158,9 @@ func (w Window) SetRuntime(runtime uint) {
 
 // Create a new window object
 func NewWindow() Window {
-	return Window(C.size_t(C.webui_new_window()))
+	w := Window(C.size_t(C.webui_new_window()))
+	funcList[w] = make(map[uint]func(Event) any)
+	return w
 }
 
 // Check a specific window if it's still running
@@ -210,9 +206,8 @@ func Wait() {
 
 // Bind a specific html element click event with a function. Empty element means all events.
 func (w Window) Bind(element string, callback func(Event) any) {
-	C.go_webui_bind(C.size_t(w), C.CString(element))
-	funcId := strconv.Itoa(int(w)) + element
-	funcList[funcId] = callback
+	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
+	funcList[w][funcId] = callback
 }
 
 func (d Data) String() string {
