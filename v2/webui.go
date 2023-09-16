@@ -101,20 +101,17 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 	iniModule()
 
 	// Create a new event struct
-	var event_type uint = uint(_event_type)
-	var element string = C.GoString(_element)
-	var data string = C.GoString(_data)
+	element := C.GoString(_element)
 	e := Event{
 		Window:    Window(window),
-		EventType: uint(event_type),
+		EventType: uint(_event_type),
 		Element:   element,
-		Data:      Data(data),
+		Data:      Data(C.GoString(_data)),
 	}
 
 	// Call user callback function
-	var window_id uint = uint(C.webui_interface_get_window_id(window))
-	var func_id string = strconv.Itoa(int(window_id)) + element
-	response := string(fun_list[func_id](e))
+	func_id := strconv.Itoa(int(window)) + element
+	response := fun_list[func_id](e)
 
 	// Set the response back
 	if len(response) > 0 {
