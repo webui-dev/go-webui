@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/webui-dev/go-webui/v2"
 )
@@ -52,7 +51,7 @@ const doc = `<!DOCTYPE html>
 
 // JavaScript:
 // webui.call('MyID_One', 'Hello');
-func myFunctionString(e webui.Event) string {
+func myFunctionString(e webui.Event) any {
 	response := e.Data.String()
 
 	fmt.Printf("myFunctionString: %s\n", response) // Hello
@@ -62,37 +61,37 @@ func myFunctionString(e webui.Event) string {
 	// WebUI supports only one argument. For multiple arguments,
 	// send a JSON string from JavaScript and decode it.
 
-	return ""
+	return nil
 }
 
 // JavaScript:
 // webui.call('MyID_Two', 123456789);
-func myFunctionInteger(e webui.Event) string {
+func myFunctionInteger(e webui.Event) any {
 	response := e.Data.Int()
 
 	fmt.Printf("myFunctionInteger: %d\n", response) // 123456789
 
-	return ""
+	return nil
 }
 
 // JavaScript:
 // webui.call('MyID_Three', true);
-func myFunctionBoolean(e webui.Event) string {
+func myFunctionBoolean(e webui.Event) any {
 	response := e.Data.Bool()
 
 	fmt.Printf("myFunctionBoolean: %t\n", response) // true
 
-	return ""
+	return nil
 }
 
 // JavaScript:
 // const result = webui.call('MyID_Four', number);
-func myFunctionWithResponse(e webui.Event) string {
+func myFunctionWithResponse(e webui.Event) any {
 	number := e.Data.Int() * 2
 
 	fmt.Printf("myFunctionWithResponse: %d\n", number)
 
-	return strconv.Itoa(number)
+	return number
 }
 
 func main() {

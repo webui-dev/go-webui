@@ -64,18 +64,17 @@ const dashboard_html string = `<!DOCTYPE html>
   </body>
 </html>`
 
-func Exit(e webui.Event) string {
-
+func Exit(e webui.Event) any {
 	webui.Exit()
-	return ""
+
+	return nil
 }
 
-func Secret(e webui.Event) string {
-
+func Secret(e webui.Event) any {
 	return "I Love Go!"
 }
 
-func Check(e webui.Event) string {
+func Check(e webui.Event) any {
 
 	// Create new JavaScript object
 	js := webui.NewJavaScript()
@@ -97,7 +96,7 @@ func Check(e webui.Event) string {
 		e.Window.Script(&js, "document.getElementById('err').innerHTML = 'Sorry. Wrong password';")
 	}
 
-	return ""
+	return nil
 }
 
 func main() {
