@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/webui-dev/go-webui/v2"
+	"github.com/webui-dev/go-webui"
 )
 
 const login_html string = `<!DOCTYPE html>
@@ -84,7 +84,8 @@ func Check(e webui.Event) any {
 
 		// There is an error in our script
 		fmt.Printf("JavaScript Error: %s\n", js.Response)
-		return ""
+
+		return nil
 	}
 
 	fmt.Printf("Password: [%s]\n", js.Response)
