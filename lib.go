@@ -11,10 +11,12 @@ package webui
 */
 
 /*
-#cgo CFLAGS: -I ./
-#cgo windows LDFLAGS: -L ./webui-windows-gcc-x64 -lwebui-2-static -lws2_32
-#cgo darwin LDFLAGS: -L ./webui-macos-clang-x64 -lwebui-2-static -lpthread -lm
-#cgo linux LDFLAGS: -L ./webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
+#cgo CFLAGS: -Iwebui
+#cgo windows LDFLAGS: -Lwebui/webui-windows-gcc-x64 -lwebui-2-static -lws2_32
+#cgo darwin,amd64 LDFLAGS: -Lwebui/webui-macos-clang-x64 -lwebui-2-static -lpthread -lm
+#cgo darwin,arm64 LDFLAGS: -Lwebui/webui-macos-clang-arm64 -lwebui-2-static -lpthread -lm
+#cgo linux LDFLAGS: -Lwebui/webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
+
 #include <webui.h>
 extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
 static void go_webui_event_handler(webui_event_t* e) {

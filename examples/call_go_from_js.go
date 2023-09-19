@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/webui-dev/go-webui/v2"
+	"github.com/webui-dev/go-webui"
 )
 
 const doc = `<!DOCTYPE html>
