@@ -36,23 +36,22 @@ import (
 	"unsafe"
 )
 
-// Web browsers enum
-const AnyBrowser uint = 0 // 0. Default recommended web browser
-const Chrome uint = 1     // 1. Google Chrome
-const Firefox uint = 2    // 2. Mozilla Firefox
-const Edge uint = 3       // 3. Microsoft Edge
-const Safari uint = 4     // 4. Apple Safari
-const Chromium uint = 5   // 5. The Chromium Project
-const Opera uint = 6      // 6. Opera Browser
-const Brave uint = 7      // 7. The Brave Browser
-const Vivaldi uint = 8    // 8. The Vivaldi Browser
-const Epic uint = 9       // 9. The Epic Browser
-const Yandex uint = 10    // 10. The Yandex Browser
+type Browser uint8
 
-// Runtimes enum
-const None uint = 0
-const Deno uint = 1
-const Nodejs uint = 2
+const (
+	AnyBrowser Browser = iota
+	Chrome
+	Firefox
+	Edge
+	Safari
+	Chromium
+	Opera
+	Brave
+	Vivaldi
+	Epic
+	Yandex
+)
+
 
 // Events enum
 const WEBUI_EVENT_DISCONNECTED uint = 0        // 0. Window disconnection event
@@ -197,7 +196,7 @@ func (w Window) Show(content string) {
 }
 
 // Same as Show(). But with a specific web browser.
-func (w Window) ShowBrowser(content string, browser uint) {
+func (w Window) ShowBrowser(content string, browser Browser) {
 	C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser))
 }
 
