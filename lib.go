@@ -52,6 +52,13 @@ const (
 	Yandex
 )
 
+type Runtime uint8
+
+const (
+	None Runtime = iota
+	Deno
+	Nodejs
+)
 
 // Events enum
 const WEBUI_EVENT_DISCONNECTED uint = 0        // 0. Window disconnection event
@@ -153,7 +160,7 @@ func Decode(str string) string {
 }
 
 // Chose between Deno and Nodejs runtime for .js and .ts files.
-func (w Window) SetRuntime(runtime uint) {
+func (w Window) SetRuntime(runtime Runtime) {
 	C.webui_set_runtime(C.size_t(w), C.size_t(runtime))
 }
 
