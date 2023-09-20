@@ -103,6 +103,11 @@ func (w Window) NewWindow() {
 	C.webui_new_window_id(C.size_t(w))
 }
 
+// NewWindowId returns a free window number that can be used with `NewWindow`.
+func NewWindowId() Window {
+	return Window(C.webui_get_new_window_id())
+}
+
 // Private function that receives and handles webui events as go events
 //
 //export goWebuiEvent
