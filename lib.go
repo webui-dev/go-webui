@@ -129,14 +129,21 @@ func (w Window) Bind(element string, callback func(Event) any) {
 }
 
 // Show opens a window using embedded HTML, or a file. If the window is already open, it will be refreshed.
-func (w Window) Show(content string) {
-	C.webui_show(C.size_t(w), C.CString(content))
+func (w Window) Show(content string) (err error) {
+	if !C.webui_show(C.size_t(w), C.CString(content)) {
+		err = errors.New("Failed showing window.")
+	}
+	return
 }
 
 // ShowBrowser opens a window using embedded HTML, or a file in a specific web browser.
 // If the window is already open, it will be refreshed.
-func (w Window) ShowBrowser(content string, browser Browser) {
-	C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser))
+func (w Window) ShowBrowser(content string, browser Browser) (err error) {
+	if !C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser)) {
+		err = errors.New("Failed showing window.")
+	}
+	return
+
 }
 
 // Wait waits until all opened windows get closed.
