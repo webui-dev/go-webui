@@ -155,7 +155,7 @@ func (w Window) ShowBrowser(content string, browser Browser) (err error) {
 	return
 }
 
-// set_kiosk determines whether Kiosk mode (full screen) is enabled for the window.
+// SetKiosk determines whether Kiosk mode (full screen) is enabled for the window.
 func (w Window) SetKiosk(enable bool) {
 	C.webui_set_kiosk(C.size_t(w), C._Bool(enable))
 }
