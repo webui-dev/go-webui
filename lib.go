@@ -98,6 +98,11 @@ func NewWindow() Window {
 	return w
 }
 
+// NewWindow creates a new webui window object using a specified window number.
+func (w Window) NewWindow() {
+	C.webui_new_window_id(C.size_t(w))
+}
+
 // Private function that receives and handles webui events as go events
 //
 //export goWebuiEvent
