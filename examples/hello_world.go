@@ -88,7 +88,7 @@ func Check(e webui.Event) any {
 	if resp == "123456" {
 		e.Window.Show(dashboard_html)
 	} else {
-		e.Window.Script("document.getElementById('err').innerHTML = 'Sorry. Wrong password';", webui.ScriptOptions{})
+		e.Window.Run("document.getElementById('err').innerHTML = 'Sorry. Wrong password';")
 	}
 
 	return nil
