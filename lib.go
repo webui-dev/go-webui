@@ -89,7 +89,16 @@ type ScriptOptions struct {
 // User Go Callback Functions list
 var funcList = make(map[Window]map[uint]func(Event) any)
 
-// This private function receives all events
+// == Definitions =============================================================
+
+// NewWindow creates a new WebUI window object and returns the window number.
+func NewWindow() Window {
+	w := Window(C.size_t(C.webui_new_window()))
+	funcList[w] = make(map[uint]func(Event) any)
+	return w
+}
+
+// Private function that receives and handles webui events as go events
 //
 //export goWebuiEvent
 func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _event_number C.size_t) {
@@ -113,9 +122,72 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 	C.webui_interface_set_response(window, _event_number, C.CString(string(jsonRes)))
 }
 
-// -- Public APIs --
+// Bind binds a specific html element click event with a function. Empty element means all events.
+func (w Window) Bind(element string, callback func(Event) any) {
+	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
+	funcList[w][funcId] = callback
+}
 
-// Run JavaScript and get the response back (Make sure your local buffer can hold the response).
+// Show opens a window using embedded HTML, or a file. If the window is already open, it will be refreshed.
+func (w Window) Show(content string) {
+	C.webui_show(C.size_t(w), C.CString(content))
+}
+
+// ShowBrowser opens a window using embedded HTML, or a file in a specific web browser.
+// If the window is already open, it will be refreshed.
+func (w Window) ShowBrowser(content string, browser Browser) {
+	C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser))
+}
+
+// Wait waits until all opened windows get closed.
+func Wait() {
+	C.webui_wait()
+}
+
+// Close closes the window. The window object will still exist.
+func (w Window) Close() {
+	C.webui_close(C.size_t(w))
+}
+
+// Exit closes all open windows. `Wait()` will return (Break).
+func Exit() {
+	C.webui_exit()
+}
+
+// IsShown checks if the window it's still running.
+func (w Window) IsShown() bool {
+	status := C.webui_is_shown(C.size_t(w))
+	return bool(status)
+}
+
+// SetTimeout sets the maximum time in seconds to wait for the browser to start.
+func SetTimeout(seconds uint) {
+	C.webui_set_timeout(C.size_t(seconds))
+}
+
+// SetMultiAccess determines whether the window URL can be reused in normal web browsers.
+func (w Window) SetMultiAccess(access bool) {
+	C.webui_set_multi_access(C.size_t(w), C._Bool(access))
+}
+
+// Encode sends text based data to the UI using base64 encoding.
+func Encode(str string) string {
+	return C.GoString(C.webui_encode(C.CString(str)))
+}
+
+// Decode decodes Base64 encoded text received from the the UI.
+func Decode(str string) string {
+	return C.GoString(C.webui_decode(C.CString(str)))
+}
+
+// == Javascript ==============================================================
+
+// Run executres JavaScript without waiting for the response.
+func (w Window) Run(script string) {
+	C.webui_run(C.size_t(w), C.CString(script))
+}
+
+// Script executes JavaScript and returns the response (Make sure the response buffer can hold the response).
 // The default BufferSize is 8KiB.
 func (w Window) Script(script string, options ScriptOptions) (resp string, err error) {
 	opts := ScriptOptions{
@@ -143,82 +215,13 @@ func (w Window) Script(script string, options ScriptOptions) (resp string, err e
 	return resp, err
 }
 
-// Run JavaScript quickly with no waiting for the response.
-func (w Window) Run(script string) {
-	C.webui_run(C.size_t(w), C.CString(script))
-}
-
-func Encode(str string) string {
-	return C.GoString(C.webui_encode(C.CString(str)))
-}
-
-func Decode(str string) string {
-	return C.GoString(C.webui_decode(C.CString(str)))
-}
-
-// Chose between Deno and Nodejs runtime for .js and .ts files.
+// SetRuntime sets the runtime for .js and .ts files to Deno and Nodejs.
 func (w Window) SetRuntime(runtime Runtime) {
 	C.webui_set_runtime(C.size_t(w), C.size_t(runtime))
 }
 
-// Create a new window object
-func NewWindow() Window {
-	w := Window(C.size_t(C.webui_new_window()))
-	funcList[w] = make(map[uint]func(Event) any)
-	return w
-}
-
-// Check a specific window if it's still running
-func (w Window) IsShown() bool {
-	status := C.webui_is_shown(C.size_t(w))
-	return bool(status)
-}
-
-// Close a specific window.
-func (w Window) Close() {
-	C.webui_close(C.size_t(w))
-}
-
-// Set the maximum time in seconds to wait for browser to start
-func SetTimeout(seconds uint) {
-	C.webui_set_timeout(C.size_t(seconds))
-}
-
-// Allow the window URL to be re-used in normal web browsers
-func (w Window) SetMultiAccess(access bool) {
-	C.webui_set_multi_access(C.size_t(w), C._Bool(access))
-}
-
-// Close all opened windows
-func Exit() {
-	C.webui_exit()
-}
-
-// Show a window using a embedded HTML, or a file. If the window is already opened then it will be refreshed.
-func (w Window) Show(content string) {
-	C.webui_show(C.size_t(w), C.CString(content))
-}
-
-// Same as Show(). But with a specific web browser.
-func (w Window) ShowBrowser(content string, browser Browser) {
-	C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser))
-}
-
-// Wait until all opened windows get closed.
-func Wait() {
-	C.webui_wait()
-}
-
-// Bind a specific html element click event with a function. Empty element means all events.
-func (w Window) Bind(element string, callback func(Event) any) {
-	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
-	funcList[w][funcId] = callback
-}
-
-func (d Data) String() string {
-	return string(d)
-}
-
+// Int parses the JavaScript argument as integer.
+// TODO: deprecate after webui_get_int implementation
 func (d Data) Int() int {
 	num, err := strconv.Atoi(string(d))
 	if err != nil {
@@ -227,6 +230,14 @@ func (d Data) Int() int {
 	return num
 }
 
+// String parses the JavaScript argument as integer.
+// TODO: deprecate after webui_get_string implementation
+func (d Data) String() string {
+	return string(d)
+}
+
+// Bool parses the JavaScript argument as integer.
+// TODO: deprecate after webui_get_bool implementation
 func (d Data) Bool() bool {
 	boolVal, err := strconv.ParseBool(string(d))
 	if err != nil {
