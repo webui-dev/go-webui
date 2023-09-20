@@ -75,26 +75,20 @@ func Secret(e webui.Event) any {
 }
 
 func Check(e webui.Event) any {
-
-	// Create new JavaScript object
-	js := webui.NewJavaScript()
-
-	// Run the script
-	if !e.Window.Script(&js, "return document.getElementById('MyInput').value;") {
-
-		// There is an error in our script
-		fmt.Printf("JavaScript Error: %s\n", js.Response)
-
+	// Run script
+	resp, err := e.Window.Script("return document.getElementById('MyInput').value;", webui.ScriptOptions{})
+	if err != nil {
+		fmt.Printf("JavaScript Error: %v\n", err)
 		return nil
 	}
 
-	fmt.Printf("Password: [%s]\n", js.Response)
+	fmt.Printf("Password: [%s]\n", resp)
 
 	// Check the password
-	if js.Response == "123456" {
+	if resp == "123456" {
 		e.Window.Show(dashboard_html)
 	} else {
-		e.Window.Script(&js, "document.getElementById('err').innerHTML = 'Sorry. Wrong password';")
+		e.Window.Script("document.getElementById('err').innerHTML = 'Sorry. Wrong password';", webui.ScriptOptions{BufferSize: 1024})
 	}
 
 	return nil

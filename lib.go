@@ -31,6 +31,7 @@ import "C"
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log"
 	"strconv"
 	"unsafe"
@@ -74,10 +75,9 @@ type Event struct {
 	Data      Data
 }
 
-type JavaScript struct {
+type ScriptOptions struct {
 	Timeout    uint
 	BufferSize uint
-	Response   string
 }
 
 // User Go Callback Functions list
@@ -109,35 +109,32 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 
 // -- Public APIs --
 
-// JavaScript object constructor
-func NewJavaScript() JavaScript {
-	js := JavaScript{
-		Timeout:    0,
-		BufferSize: (1024 * 8),
-		Response:   "",
+// Run JavaScript and get the response back (Make sure your local buffer can hold the response).
+// The default BufferSize is 8KiB.
+func (w Window) Script(script string, options ScriptOptions) (resp string, err error) {
+	opts := ScriptOptions{
+		Timeout:    options.Timeout,
+		BufferSize: options.BufferSize,
 	}
-	return js
-}
+	if options.BufferSize == 0 {
+		opts.BufferSize = (1024 * 8)
+	}
 
-// Run a JavaScript, and get the response back (Make sure your local buffer can hold the response).
-func (w Window) Script(js *JavaScript, script string) bool {
 	// Create a local buffer to hold the response
-	ResponseBuffer := make([]byte, uint64(js.BufferSize))
+	buffer := make([]byte, uint64(opts.BufferSize))
 
 	// Create a pointer to the local buffer
-	ptr := (*C.char)(unsafe.Pointer(&ResponseBuffer[0]))
+	ptr := (*C.char)(unsafe.Pointer(&buffer[0]))
 
-	// Run the JavaScript and wait for response
-	status := C.webui_script(C.size_t(w), C.CString(script), C.size_t(js.Timeout), ptr, C.size_t(uint64(js.BufferSize)))
+	// Run the script and wait for the response
+	ok := C.webui_script(C.size_t(w), C.CString(script), C.size_t(opts.Timeout), ptr, C.size_t(uint64(opts.BufferSize)))
+	if !ok {
+		err = errors.New("Failed running JavaScript.")
+	}
+	respLen := bytes.IndexByte(buffer[:], 0)
+	resp = string(buffer[:respLen])
 
-	// Copy the response to the users struct
-	ResponseLen := bytes.IndexByte(ResponseBuffer[:], 0)
-	js.Response = string(ResponseBuffer[:ResponseLen])
-
-	// return the status of the JavaScript execution
-	// True: No JavaScript error.
-	// False: JavaScript error.
-	return bool(status)
+	return resp, err
 }
 
 // Run JavaScript quickly with no waiting for the response.
