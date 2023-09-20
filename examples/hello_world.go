@@ -76,7 +76,7 @@ func Secret(e webui.Event) any {
 
 func Check(e webui.Event) any {
 	// Run script
-	resp, err := e.Window.Script("return document.getElementById('MyInput').value;", webui.ScriptOptions{})
+	resp, err := e.Window.Script("return document.getElementById('MyInput').value;", webui.ScriptOptions{BufferSize: 1024})
 	if err != nil {
 		fmt.Printf("JavaScript Error: %v\n", err)
 		return nil
@@ -88,7 +88,7 @@ func Check(e webui.Event) any {
 	if resp == "123456" {
 		e.Window.Show(dashboard_html)
 	} else {
-		e.Window.Script("document.getElementById('err').innerHTML = 'Sorry. Wrong password';", webui.ScriptOptions{BufferSize: 1024})
+		e.Window.Script("document.getElementById('err').innerHTML = 'Sorry. Wrong password';", webui.ScriptOptions{})
 	}
 
 	return nil
