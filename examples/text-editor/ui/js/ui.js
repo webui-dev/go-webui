@@ -65,7 +65,7 @@ function addLine(text) {
 
 // Add full text to the editor
 function addText(text) {
-    codeMirrorInstance.setValue(webui.decode(text));
+    codeMirrorInstance.setValue(atob(text));
 
     const element = document.getElementById('SaveLi');
     element.style.color = '#ddecf9';
