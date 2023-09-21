@@ -1,7 +1,6 @@
 package main
 
 import (
-	b64 "encoding/base64"
 	"fmt"
 	"os"
 
@@ -29,23 +28,23 @@ func Save(e webui.Event) any {
 
 func Open(e webui.Event) any {
 	fmt.Println("Open.")
+
 	file := e.Data.String()
 	if file == "" {
 		e.Window.Run("webui.call('Open', prompt`File Location`)")
 		return nil
 	}
-	content, err := os.ReadFile(file)
 
+	content, err := os.ReadFile(file)
 	if err != nil {
-		fmt.Println("Error reading file ", file)
-		fmt.Println("Error: ", err)
+		fmt.Printf("Error reading file %s. %v\n", file, err)
 		return nil
 	}
 
-	filePath = file
+	e.Window.Run(fmt.Sprintf("addText('%s')", webui.Encode(string(content))))
+	e.Window.Run(fmt.Sprintf("SetFile('%s')", file))
 
-	e.Window.Run(fmt.Sprintf("addText('%s')", b64.StdEncoding.EncodeToString([]byte(content))))
-	e.Window.Run(fmt.Sprintf("SetFile('%s')", b64.StdEncoding.EncodeToString([]byte(file))))
+	filePath = file
 
 	return nil
 }
