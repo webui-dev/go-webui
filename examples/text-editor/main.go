@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sqweek/dialog"
 	"github.com/webui-dev/go-webui"
 )
 
@@ -30,25 +29,23 @@ func Save(e webui.Event) any {
 
 func Open(e webui.Event) any {
 	fmt.Println("Open.")
-
-	filename, err := dialog.File().Load()
-
-	if err == dialog.Cancelled {
-		return ""
+	file := e.Data.String()
+	if file == "" {
+		e.Window.Run("webui.call('Open', prompt`File Location`)")
+		return nil
 	}
-
-	content, err := os.ReadFile(filename)
+	content, err := os.ReadFile(file)
 
 	if err != nil {
-		fmt.Println("Error reading file ", filename)
+		fmt.Println("Error reading file ", file)
 		fmt.Println("Error: ", err)
 		return nil
 	}
 
-	filePath = filename
+	filePath = file
 
 	e.Window.Run(fmt.Sprintf("addText('%s')", b64.StdEncoding.EncodeToString([]byte(content))))
-	e.Window.Run(fmt.Sprintf("SetFile('%s')", b64.StdEncoding.EncodeToString([]byte(filename))))
+	e.Window.Run(fmt.Sprintf("SetFile('%s')", b64.StdEncoding.EncodeToString([]byte(file))))
 
 	return nil
 }
