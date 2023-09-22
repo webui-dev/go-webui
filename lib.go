@@ -170,6 +170,11 @@ func (w Window) Close() {
 	C.webui_close(C.size_t(w))
 }
 
+// Destroy closes the window and free all memory resources.
+func (w Window) Destroy() {
+	C.webui_destroy(C.size_t(w))
+}
+
 // Exit closes all open windows. `Wait()` will return (Break).
 func Exit() {
 	C.webui_exit()
