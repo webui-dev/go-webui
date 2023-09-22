@@ -98,6 +98,8 @@ type getArgError struct {
 	typ     string
 }
 
+type Void *struct{}
+
 // User Go Callback Functions list
 var funcList = make(map[Window]map[uint]func(Event) any)
 
@@ -138,17 +140,25 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 	if result == nil {
 		return
 	}
-	jsonRes, err := json.Marshal(result)
+	response, err := json.Marshal(result)
 	if err != nil {
 		log.Println("Failed encoding JS result into JSON", err)
 	}
-	C.webui_interface_set_response(window, _event_number, C.CString(string(jsonRes)))
+	C.webui_interface_set_response(window, _event_number, C.CString(string(response)))
 }
 
 // Bind binds a specific html element click event with a function. Empty element means all events.
 func (w Window) Bind(element string, callback func(Event) any) {
 	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
 	funcList[w][funcId] = callback
+}
+
+// Bind binds a specific html element click event with a function. Empty element means all events.
+func Bind[T any](w Window, element string, callback func(Event) T) {
+	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
+	funcList[w][funcId] = func(e Event) any {
+		return callback(e)
+	}
 }
 
 // Show opens a window using embedded HTML, or a file. If the window is already open, it will be refreshed.
