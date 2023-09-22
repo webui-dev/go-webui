@@ -18,9 +18,9 @@ package webui
 #cgo linux LDFLAGS: -Lwebui/webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
 
 #include <webui.h>
-extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _event_number);
+extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _size, size_t _event_number);
 static void go_webui_event_handler(webui_event_t* e) {
-	goWebuiEvent(e->window, e->event_type, e->element, e->data, e->event_number);
+	goWebuiEvent(e->window, e->event_type, e->element, e->data, e->size, e->event_number);
 }
 static size_t go_webui_bind(size_t win, const char* element) {
 	return webui_bind(win, element, go_webui_event_handler);
@@ -80,6 +80,7 @@ type Event struct {
 	EventType uint
 	Element   string
 	Data      Data
+	Size      uint
 }
 
 type ScriptOptions struct {
@@ -112,13 +113,14 @@ func NewWindowId() Window {
 // Private function that receives and handles webui events as go events
 //
 //export goWebuiEvent
-func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _event_number C.size_t) {
+func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _size C.size_t, _event_number C.size_t) {
 	// Create a new event struct
 	e := Event{
 		Window:    Window(window),
 		EventType: uint(_event_type),
 		Element:   C.GoString(_element),
 		Data:      Data(C.GoString(_data)),
+		Size:      uint(_size),
 	}
 	// Call user callback function
 	funcId := uint(C.webui_interface_get_bind_id(window, _element))
