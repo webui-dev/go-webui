@@ -180,6 +180,16 @@ func Exit() {
 	C.webui_exit()
 }
 
+// SetRootFolder sets the web-server root folder path for the window.
+func (w Window) SetRootFolder(path string) {
+	C.webui_set_root_folder(C.size_t(w), C.CString(path))
+}
+
+// SetRootFolder sets the web-server root folder path for all windows.
+func SetRootFolder(path string) {
+	C.webui_set_default_root_folder(C.CString(path))
+}
+
 // IsShown checks if the window it's still running.
 func (w Window) IsShown() bool {
 	status := C.webui_is_shown(C.size_t(w))
