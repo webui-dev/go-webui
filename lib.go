@@ -88,6 +88,16 @@ type ScriptOptions struct {
 	BufferSize uint
 }
 
+type noArgError struct {
+	element string
+}
+
+type getArgError struct {
+	err     error
+	element string
+	typ     string
+}
+
 // User Go Callback Functions list
 var funcList = make(map[Window]map[uint]func(Event) any)
 
@@ -269,28 +279,43 @@ func (w Window) SetRuntime(runtime Runtime) {
 	C.webui_set_runtime(C.size_t(w), C.size_t(runtime))
 }
 
+func (e *noArgError) Error() string {
+	return fmt.Sprintf("`%s` did not receive an argument.", e.element)
+}
+
+func (e *getArgError) Error() string {
+	return fmt.Sprintf("Failed getting argument of type `%s` for `%s`. %v", e.typ, e.element, e.err)
+}
+
 // Int parses the JavaScript argument as integer.
-// TODO: deprecate after webui_get_int implementation
-func (d Data) Int() int {
-	num, err := strconv.Atoi(string(d))
-	if err != nil {
-		log.Println("Failed getting event int argument", err)
+func (e Event) Int() (arg int, err error) {
+	if e.Size == 0 {
+		err = &noArgError{e.Element}
 	}
-	return num
+	arg, err = strconv.Atoi(string(e.Data))
+	if err != nil {
+		err = &getArgError{err, "int", e.Element}
+	}
+	return
 }
 
 // String parses the JavaScript argument as integer.
-// TODO: deprecate after webui_get_string implementation
-func (d Data) String() string {
-	return string(d)
+func (e Event) String() (arg string, err error) {
+	if e.Size == 0 {
+		err = &noArgError{e.Element}
+	}
+	arg = string(e.Data)
+	return
 }
 
 // Bool parses the JavaScript argument as integer.
-// TODO: deprecate after webui_get_bool implementation
-func (d Data) Bool() bool {
-	boolVal, err := strconv.ParseBool(string(d))
-	if err != nil {
-		log.Println("Failed getting event bool argument", err)
+func (e Event) Bool() (arg bool, err error) {
+	if e.Size == 0 {
+		err = &noArgError{e.Element}
 	}
-	return boolVal
+	arg, err = strconv.ParseBool(string(e.Data))
+	if err != nil {
+		err = &getArgError{err, "bool", e.Element}
+	}
+	return
 }
