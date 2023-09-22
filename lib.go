@@ -319,3 +319,22 @@ func (e Event) Bool() (arg bool, err error) {
 	}
 	return
 }
+
+// GetArg parses the JavaScript argument into a Go data type.
+func GetArg[T any](e Event) (arg T, err error) {
+	if e.Size == 0 {
+		err = &noArgError{e.Element}
+	}
+	var ret T
+	switch p := any(&ret).(type) {
+	case *string:
+		*p, err = e.String()
+	case *int:
+		*p, err = e.Int()
+	case *bool:
+		*p, err = e.Bool()
+	default:
+		err = json.Unmarshal([]byte(e.Data), p)
+	}
+	return ret, nil
+}
