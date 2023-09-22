@@ -216,6 +216,10 @@ func Decode(str string) string {
 	return C.GoString(C.webui_decode(C.CString(str)))
 }
 
+// SetSize sets the window size.
+func (w Window) SetSize(width uint, height uint) {
+	C.webui_set_size(C.size_t(w), C.uint(width), C.uint(height))
+}
 // == Javascript ==============================================================
 
 // Run executres JavaScript without waiting for the response.
