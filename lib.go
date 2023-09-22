@@ -220,6 +220,12 @@ func Decode(str string) string {
 func (w Window) SetSize(width uint, height uint) {
 	C.webui_set_size(C.size_t(w), C.uint(width), C.uint(height))
 }
+
+// SetPosition sets the window position.
+func (w Window) SetPosition(x uint, y uint) {
+	C.webui_set_position(C.size_t(w), C.uint(x), C.uint(y))
+}
+
 // == Javascript ==============================================================
 
 // Run executres JavaScript without waiting for the response.
