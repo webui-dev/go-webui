@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/webui-dev/go-webui"
+	ui "github.com/webui-dev/go-webui"
 )
 
 const doc = `<!DOCTYPE html>
@@ -50,8 +50,12 @@ const doc = `<!DOCTYPE html>
 
 // JavaScript:
 // webui.call('MyID_One', 'Hello');
-func myFunctionString(e webui.Event) any {
-	response := e.Data.String()
+func myFunctionString(e ui.Event) ui.Void {
+	response, err := e.String()
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
 
 	fmt.Printf("myFunctionString: %s\n", response) // Hello
 
@@ -65,8 +69,8 @@ func myFunctionString(e webui.Event) any {
 
 // JavaScript:
 // webui.call('MyID_Two', 123456789);
-func myFunctionInteger(e webui.Event) any {
-	response := e.Data.Int()
+func myFunctionInteger(e ui.Event) ui.Void {
+	response, _ := ui.GetArg[int](e)
 
 	fmt.Printf("myFunctionInteger: %d\n", response) // 123456789
 
@@ -75,8 +79,8 @@ func myFunctionInteger(e webui.Event) any {
 
 // JavaScript:
 // webui.call('MyID_Three', true);
-func myFunctionBoolean(e webui.Event) any {
-	response := e.Data.Bool()
+func myFunctionBoolean(e ui.Event) ui.Void {
+	response, _ := ui.GetArg[bool](e)
 
 	fmt.Printf("myFunctionBoolean: %t\n", response) // true
 
@@ -85,27 +89,28 @@ func myFunctionBoolean(e webui.Event) any {
 
 // JavaScript:
 // const result = webui.call('MyID_Four', number);
-func myFunctionWithResponse(e webui.Event) any {
-	number := e.Data.Int() * 2
+func myFunctionWithResponse(e ui.Event) int {
+	number, _ := ui.GetArg[int](e)
 
-	fmt.Printf("myFunctionWithResponse: %d\n", number)
+	response := number * 2
+	fmt.Printf("myFunctionWithResponse: %d\n", response)
 
-	return number
+	return response
 }
 
 func main() {
 	// Create a new window.
-	w := webui.NewWindow()
+	w := ui.NewWindow()
 
 	// Bind go functions.
-	w.Bind("MyID_One", myFunctionString)
-	w.Bind("MyID_Two", myFunctionInteger)
-	w.Bind("MyID_Three", myFunctionBoolean)
-	w.Bind("MyID_Four", myFunctionWithResponse)
+	ui.Bind(w, "MyID_One", myFunctionString)
+	ui.Bind(w, "MyID_Two", myFunctionInteger)
+	ui.Bind(w, "MyID_Three", myFunctionBoolean)
+	ui.Bind(w, "MyID_Four", myFunctionWithResponse)
 
 	// Show html UI.
 	w.Show(doc)
 
 	// Wait until all windows get closed.
-	webui.Wait()
+	ui.Wait()
 }
