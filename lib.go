@@ -32,6 +32,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"unsafe"
@@ -253,7 +254,7 @@ func (w Window) Script(script string, options ScriptOptions) (resp string, err e
 	// Run the script and wait for the response
 	ok := C.webui_script(C.size_t(w), C.CString(script), C.size_t(opts.Timeout), ptr, C.size_t(uint64(opts.BufferSize)))
 	if !ok {
-		err = errors.New("Failed running JavaScript.")
+		err = errors.New(fmt.Sprintf("Failed running script: %s.\n", script))
 	}
 	respLen := bytes.IndexByte(buffer[:], 0)
 	resp = string(buffer[:respLen])
