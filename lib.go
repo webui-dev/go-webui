@@ -229,6 +229,11 @@ func SetTimeout(seconds uint) {
 	C.webui_set_timeout(C.size_t(seconds))
 }
 
+// SetIcon sets the default embedded HTML favicon.
+func (w Window) SetIcon(icon string, icon_type string) {
+	C.webui_set_icon(C.size_t(w), C.CString(icon), C.CString(icon_type))
+}
+
 // SetMultiAccess determines whether the window URL can be reused in normal web browsers.
 func (w Window) SetMultiAccess(access bool) {
 	C.webui_set_multi_access(C.size_t(w), C._Bool(access))
@@ -244,6 +249,11 @@ func Decode(str string) string {
 	return C.GoString(C.webui_decode(C.CString(str)))
 }
 
+// SetHide determines whether the window is run in hidden mode.
+func (w Window) SetHide(status bool) {
+	C.webui_set_hide(C.size_t(w), C._Bool(status))
+}
+
 // SetSize sets the window size.
 func (w Window) SetSize(width uint, height uint) {
 	C.webui_set_size(C.size_t(w), C.uint(width), C.uint(height))
@@ -252,6 +262,18 @@ func (w Window) SetSize(width uint, height uint) {
 // SetPosition sets the window position.
 func (w Window) SetPosition(x uint, y uint) {
 	C.webui_set_position(C.size_t(w), C.uint(x), C.uint(y))
+}
+
+// SetProfile sets the web browser profile to use.
+// An empty `name` and `path` means the default user profile.
+// Needs to be called before `webui_show()`.
+func (w Window) SetProfile(name string, path string) {
+	C.webui_set_profile(C.size_t(w), C.CString(name), C.CString(path))
+}
+
+// GetUrl returns the full current URL
+func (w Window) GetUrl() string {
+	return C.GoString(C.webui_get_url(C.size_t(w)))
 }
 
 // == Javascript ==============================================================
