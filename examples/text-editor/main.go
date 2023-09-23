@@ -11,7 +11,7 @@ import (
 
 var filePath string = ""
 
-func Close(_ webui.Event) any {
+func Close(_ webui.Event) webui.Void {
 	fmt.Println("Exit.")
 
 	webui.Exit()
@@ -20,7 +20,7 @@ func Close(_ webui.Event) any {
 
 }
 
-func Save(e webui.Event) any {
+func Save(e webui.Event) webui.Void {
 	println("Save.")
 
 	os.WriteFile(filePath, []byte(e.Data), 0644)
@@ -28,13 +28,13 @@ func Save(e webui.Event) any {
 	return nil
 }
 
-func Open(e webui.Event) any {
+func Open(e webui.Event) webui.Void {
 	fmt.Println("Open.")
 
 	filename, err := dialog.File().Load()
 
 	if err == dialog.Cancelled {
-		return ""
+		return nil
 	}
 
 	content, err := os.ReadFile(filename)
@@ -56,9 +56,9 @@ func Open(e webui.Event) any {
 func main() {
 	w := webui.NewWindow()
 
-	w.Bind("Open", Open)
-	w.Bind("Save", Save)
-	w.Bind("Close", Close)
+	webui.Bind(w, "Open", Open)
+	webui.Bind(w, "Save", Save)
+	webui.Bind(w, "Close", Close)
 
 	w.Show("ui/MainWindow.html")
 
