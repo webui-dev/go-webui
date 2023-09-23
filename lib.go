@@ -271,6 +271,11 @@ func (w Window) SetProfile(name string, path string) {
 	C.webui_set_profile(C.size_t(w), C.CString(name), C.CString(path))
 }
 
+// GetUrl returns the full current URL
+func (w Window) GetUrl() string {
+	return C.GoString(C.webui_get_url(C.size_t(w)))
+}
+
 // == Javascript ==============================================================
 
 // Run executres JavaScript without waiting for the response.
