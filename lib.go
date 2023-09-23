@@ -88,6 +88,8 @@ type ScriptOptions struct {
 	BufferSize uint
 }
 
+type Void *struct{}
+
 type noArgError struct {
 	element string
 }
@@ -97,8 +99,6 @@ type getArgError struct {
 	element string
 	typ     string
 }
-
-type Void *struct{}
 
 // User Go Callback Functions list
 var funcList = make(map[Window]map[uint]func(Event) any)
@@ -281,7 +281,7 @@ func (w Window) Script(script string, options ScriptOptions) (resp string, err e
 	respLen := bytes.IndexByte(buffer[:], 0)
 	resp = string(buffer[:respLen])
 
-	return resp, err
+	return
 }
 
 // SetRuntime sets the runtime for .js and .ts files to Deno and Nodejs.
@@ -346,5 +346,6 @@ func GetArg[T any](e Event) (arg T, err error) {
 	default:
 		err = json.Unmarshal([]byte(e.Data), p)
 	}
-	return ret, nil
+	arg = ret
+	return
 }
