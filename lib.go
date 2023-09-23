@@ -264,6 +264,13 @@ func (w Window) SetPosition(x uint, y uint) {
 	C.webui_set_position(C.size_t(w), C.uint(x), C.uint(y))
 }
 
+// SetProfile sets the web browser profile to use.
+// An empty `name` and `path` means the default user profile.
+// Needs to be called before `webui_show()`.
+func (w Window) SetProfile(name string, path string) {
+	C.webui_set_profile(C.size_t(w), C.CString(name), C.CString(path))
+}
+
 // == Javascript ==============================================================
 
 // Run executres JavaScript without waiting for the response.
