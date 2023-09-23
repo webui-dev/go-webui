@@ -129,18 +129,19 @@ func NewWindowId() Window {
 // Private function that receives and handles webui events as go events
 //
 //export goWebuiEvent
-func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _size C.size_t, _event_number C.size_t) {
+func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _size C.size_t, _event_number C.size_t) {
 	// Create a new event struct
+	w := Window(_window)
 	e := Event{
-		Window:    Window(window),
+		Window:    w,
 		EventType: EventType(_event_type),
 		Element:   C.GoString(_element),
 		Data:      Data(C.GoString(_data)),
 		Size:      uint(_size),
 	}
 	// Call user callback function
-	funcId := uint(C.webui_interface_get_bind_id(window, _element))
-	result := funcList[Window(window)][funcId](e)
+	funcId := uint(C.webui_interface_get_bind_id(_window, _element))
+	result := funcList[w][funcId](e)
 	if result == nil {
 		return
 	}
@@ -148,7 +149,7 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 	if err != nil {
 		log.Println("Failed encoding JS result into JSON", err)
 	}
-	C.webui_interface_set_response(window, _event_number, C.CString(string(response)))
+	C.webui_interface_set_response(_window, _event_number, C.CString(string(response)))
 }
 
 // Bind binds a specific html element click event with a function. Empty element means all events.
