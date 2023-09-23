@@ -229,6 +229,11 @@ func SetTimeout(seconds uint) {
 	C.webui_set_timeout(C.size_t(seconds))
 }
 
+// SetIcon sets the default embedded HTML favicon.
+func (w Window) SetIcon(icon string, icon_type string) {
+	C.webui_set_icon(C.size_t(w), C.CString(icon), C.CString(icon_type))
+}
+
 // SetMultiAccess determines whether the window URL can be reused in normal web browsers.
 func (w Window) SetMultiAccess(access bool) {
 	C.webui_set_multi_access(C.size_t(w), C._Bool(access))
