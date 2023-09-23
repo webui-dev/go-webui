@@ -62,14 +62,17 @@ const (
 	Nodejs
 )
 
-// Events enum
-const WEBUI_EVENT_DISCONNECTED uint = 0        // 0. Window disconnection event
-const WEBUI_EVENT_CONNECTED uint = 1           // 1. Window connection event
-const WEBUI_EVENT_MULTI_CONNECTION uint = 2    // 2. New window connection event
-const WEBUI_EVENT_UNWANTED_CONNECTION uint = 3 // 3. New unwanted window connection event
-const WEBUI_EVENT_MOUSE_CLICK uint = 4         // 4. Mouse click event
-const WEBUI_EVENT_NAVIGATION uint = 5          // 5. Window navigation event
-const WEBUI_EVENT_CALLBACK uint = 6            // 6. Function call event
+type EventType uint8
+
+const (
+	Disconnected EventType = iota
+	Connected
+	MultiConnection
+	UnwantedConnection
+	MouseClick
+	Navigation
+	Callback
+)
 
 type Window uint
 
@@ -77,7 +80,7 @@ type Data string
 
 type Event struct {
 	Window    Window
-	EventType uint
+	EventType EventType
 	Element   string
 	Data      Data
 	Size      uint
@@ -129,7 +132,7 @@ func goWebuiEvent(window C.size_t, _event_type C.size_t, _element *C.char, _data
 	// Create a new event struct
 	e := Event{
 		Window:    Window(window),
-		EventType: uint(_event_type),
+		EventType: EventType(_event_type),
 		Element:   C.GoString(_element),
 		Data:      Data(C.GoString(_data)),
 		Size:      uint(_size),
