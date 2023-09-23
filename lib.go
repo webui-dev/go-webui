@@ -117,6 +117,7 @@ func NewWindow() Window {
 
 // NewWindow creates a new webui window object using a specified window number.
 func (w Window) NewWindow() {
+	funcList[w] = make(map[uint]func(Event) any)
 	C.webui_new_window_id(C.size_t(w))
 }
 
