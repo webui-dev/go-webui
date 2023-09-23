@@ -249,6 +249,11 @@ func Decode(str string) string {
 	return C.GoString(C.webui_decode(C.CString(str)))
 }
 
+// SetHide determines whether the window is run in hidden mode.
+func (w Window) SetHide(status bool) {
+	C.webui_set_hide(C.size_t(w), C._Bool(status))
+}
+
 // SetSize sets the window size.
 func (w Window) SetSize(width uint, height uint) {
 	C.webui_set_size(C.size_t(w), C.uint(width), C.uint(height))
