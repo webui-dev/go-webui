@@ -35,6 +35,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 	"unsafe"
 )
 
@@ -207,6 +208,8 @@ func (w Window) Destroy() {
 // Exit closes all open windows. `Wait()` will return (Break).
 func Exit() {
 	C.webui_exit()
+	// Quickfix segfault on `Exit` call when all Events where bound. E.g.: `w.Bind("", events)`
+	time.Sleep(1 * time.Millisecond)
 }
 
 // SetRootFolder sets the web-server root folder path for the window.
