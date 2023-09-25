@@ -52,6 +52,7 @@ const (
 	Vivaldi
 	Epic
 	Yandex
+	ChromiumBased
 )
 
 type Runtime uint8
