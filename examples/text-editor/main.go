@@ -18,7 +18,7 @@ func main() {
 
 	w.SetRootFolder("ui")
 
-	if err := w.ShowBrowser("index.html", webui.Yandex); err != nil {
+	if err := w.ShowBrowser("index.html", webui.ChromiumBased); err != nil {
 		println("Warning: Install a Chromium-based web browser for an optimized experience.")
 		w.Show("index.html")
 	}
