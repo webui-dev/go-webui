@@ -277,6 +277,11 @@ func (w Window) GetUrl() string {
 	return C.GoString(C.webui_get_url(C.size_t(w)))
 }
 
+// Navigate navigates to a specific URL
+func (w Window) Navigate(url string) {
+	C.webui_navigate(C.size_t(w), C.CString(url))
+}
+
 // == Javascript ==============================================================
 
 // Run executres JavaScript without waiting for the response.
