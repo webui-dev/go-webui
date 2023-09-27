@@ -131,6 +131,10 @@ func NewWindowId() Window {
 //
 //export goWebuiEvent
 func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _size C.size_t, _event_number C.size_t) {
+	funcId := uint(C.webui_interface_get_bind_id(_window, _element))
+	if funcId < 1 {
+		return
+	}
 	// Create a new event struct
 	w := Window(_window)
 	e := Event{
@@ -141,7 +145,6 @@ func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _dat
 		Size:      uint(_size),
 	}
 	// Call user callback function
-	funcId := uint(C.webui_interface_get_bind_id(_window, _element))
 	result := funcList[w][funcId](e)
 	if result == nil {
 		return
