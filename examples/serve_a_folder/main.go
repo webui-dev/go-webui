@@ -44,7 +44,7 @@ func showSecondWindow(e ui.Event) any {
 		// Slow down check interval to reduce load.
 		time.Sleep(10 * time.Millisecond)
 	}
-	if w2.IsShown() {
+	if !w2.IsShown() {
 		return nil
 	}
 	// Let the DOM load.
