@@ -41,7 +41,8 @@ import (
 type Browser uint8
 
 const (
-	AnyBrowser Browser = iota
+	NoBrowser Browser = iota
+	AnyBrowser
 	Chrome
 	Firefox
 	Edge
