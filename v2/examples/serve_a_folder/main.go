@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	ui "github.com/webui-dev/go-webui"
+	ui "github.com/webui-dev/go-webui/v2"
 )
 
 const (

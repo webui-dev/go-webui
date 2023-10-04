@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	ui "github.com/webui-dev/go-webui"
+	ui "github.com/webui-dev/go-webui/v2"
 )
 
 // UI HTML

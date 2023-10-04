@@ -41,18 +41,65 @@
 
 - Fully Independent (No need for any third-party runtimes)
 - Lightweight ~200 Kb & Small memory footprint
-- Fast binary communication protocol between WebUI and the browser (*Instead of JSON*)
+- Fast binary communication protocol between WebUI and the browser (_Instead of JSON_)
 - Multi-platform & Multi-Browser
 - Using private profile for safety
 - Original library written in Pure C
 
-## Usage
+## Installation
 
-### Installation
+### As Go Module
+
+1. Download the go module
 
 ```sh
-go get github.com/webui-dev/go-webui@latest
+go get github.com/webui-dev/go-webui/v2/@v2.4.0-beta
 ```
+
+2. Setup the WebUI C library
+
+```sh
+# Linux & macOS
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
+
+# Windows Powershell
+irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
+```
+
+> **Note**
+> Checking a script from projects you don't know yet is a good practice.
+> For this, you can check the scripts source before running it manually
+> https://github.com/webui-dev/go-webui/blob/main/setup.sh.
+>
+> ```sh
+> # E.g., download with curl before execution
+> curl -o setup.sh https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh
+> sh setup.sh
+> ```
+
+### As git clone in a local directory
+
+_This approach can be useful for quick testing and for development and contribution purposes._
+
+To clone the repository and setup the WebUI library in a local directory and run the examples, run:
+
+```sh
+# Clone the repository to into a `go-webui` directory, relative to your current path
+git clone https://github.com/webui-dev/go-webui.git
+cd go-webui
+
+# Setup WebUI C relative to the current path
+# Linux & macOS
+./setup.sh --local
+# Windows Powershell
+.\setup.ps1 --local
+
+# Run examples
+cd v2/examples
+go run minimal.go
+```
+
+## Usage
 
 ### Minimal Example
 
@@ -70,16 +117,21 @@ func main() {
 
 Find more examples in the [`examples/`](https://github.com/webui-dev/go-webui/tree/main/examples) directory.
 
+### Debugging
+
+To use WebUI's debug build in your Go-WebUI application, add the `webui_log` build tag. E.g.:
+
+```sh
+go run -tags webui_log minimal.go
+```
+
 ## Documentation
 
-> **Note**
-> We are currently writing documentation.
-
-- [Online Documentation](https://webui.me/docs/#/go)
+- [Online Documentation](https://webui.me/docs/#/go) (WIP)
 
 ## UI & The Web Technologies
 
-[Borislav Stanimirov](https://ibob.bg/) discusses using HTML5 in the web browser as GUI at the [C++ Conference 2019 (*YouTube*)](https://www.youtube.com/watch?v=bbbcZd4cuxg).
+[Borislav Stanimirov](https://ibob.bg/) discusses using HTML5 in the web browser as GUI at the [C++ Conference 2019 (_YouTube_)](https://www.youtube.com/watch?v=bbbcZd4cuxg).
 
 <!-- <div align="center">
   <a href="https://www.youtube.com/watch?v=bbbcZd4cuxg"><img src="https://img.youtube.com/vi/bbbcZd4cuxg/0.jpg" alt="Embrace Modern Technology: Using HTML 5 for GUI in C++ - Borislav Stanimirov - CppCon 2019"></a>
@@ -109,39 +161,39 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 
 ### Runtime Dependencies Comparison
 
-|  | WebView | Qt | WebUI |
-| ------ | ------ | ------ | ------ |
-| Runtime Dependencies on Windows | *WebView2* | *QtCore, QtGui, QtWidgets* | ***A Web Browser*** |
-| Runtime Dependencies on Linux | *GTK3, WebKitGTK* | *QtCore, QtGui, QtWidgets* | ***A Web Browser*** |
-| Runtime Dependencies on macOS | *Cocoa, WebKit* | *QtCore, QtGui, QtWidgets* | ***A Web Browser*** |
+|                                 | WebView           | Qt                         | WebUI               |
+| ------------------------------- | ----------------- | -------------------------- | ------------------- |
+| Runtime Dependencies on Windows | _WebView2_        | _QtCore, QtGui, QtWidgets_ | **_A Web Browser_** |
+| Runtime Dependencies on Linux   | _GTK3, WebKitGTK_ | _QtCore, QtGui, QtWidgets_ | **_A Web Browser_** |
+| Runtime Dependencies on macOS   | _Cocoa, WebKit_   | _QtCore, QtGui, QtWidgets_ | **_A Web Browser_** |
 
 ## Wrappers
 
-| Language | Status | Link |
-| ------ | ------ | ------ |
-| Go | ✔️ | [Go-WebUI](https://github.com/webui-dev/go-webui) |
-| Nim | ✔️ | [Nim-WebUI](https://github.com/webui-dev/nim-webui) |
-| Pascal | ✔️ | [Pascal-WebUI](https://github.com/webui-dev/pascal-webui) |
-| Python | ✔️ | [Python-WebUI](https://github.com/webui-dev/python-webui) |
-| Rust | *not complete* | [Rust-WebUI](https://github.com/webui-dev/rust-webui) |
-| TypeScript / JavaScript | ✔️ | [Deno-WebUI](https://github.com/webui-dev/deno-webui) |
-| V | ✔️ | [V-WebUI](https://github.com/webui-dev/v-webui) |
-| Zig | *not complete* | [Zig-WebUI](https://github.com/webui-dev/zig-webui) |
+| Language                | Status         | Link                                                      |
+| ----------------------- | -------------- | --------------------------------------------------------- |
+| Go                      | ✔️             | [Go-WebUI](https://github.com/webui-dev/go-webui)         |
+| Nim                     | ✔️             | [Nim-WebUI](https://github.com/webui-dev/nim-webui)       |
+| Pascal                  | ✔️             | [Pascal-WebUI](https://github.com/webui-dev/pascal-webui) |
+| Python                  | ✔️             | [Python-WebUI](https://github.com/webui-dev/python-webui) |
+| Rust                    | _not complete_ | [Rust-WebUI](https://github.com/webui-dev/rust-webui)     |
+| TypeScript / JavaScript | ✔️             | [Deno-WebUI](https://github.com/webui-dev/deno-webui)     |
+| V                       | ✔️             | [V-WebUI](https://github.com/webui-dev/v-webui)           |
+| Zig                     | _not complete_ | [Zig-WebUI](https://github.com/webui-dev/zig-webui)       |
 
 ## Supported Web Browsers
 
-| Browser | Windows | macOS | Linux |
-| ------ | ------ | ------ | ------ |
-| Mozilla Firefox | ✔️ | ✔️ | ✔️ |
-| Google Chrome | ✔️ | ✔️ | ✔️ |
-| Microsoft Edge | ✔️ | ✔️ | ✔️ |
-| Chromium | ✔️ | ✔️ | ✔️ |
-| Yandex | ✔️ | ✔️ | ✔️ |
-| Brave | ✔️ | ✔️ | ✔️ |
-| Vivaldi | ✔️ | ✔️ | ✔️ |
-| Epic | ✔️ | ✔️ | *not available* |
-| Apple Safari | *not available* | *coming soon* | *not available* |
-| Opera | *coming soon* | *coming soon* | *coming soon* |
+| Browser         | Windows         | macOS         | Linux           |
+| --------------- | --------------- | ------------- | --------------- |
+| Mozilla Firefox | ✔️              | ✔️            | ✔️              |
+| Google Chrome   | ✔️              | ✔️            | ✔️              |
+| Microsoft Edge  | ✔️              | ✔️            | ✔️              |
+| Chromium        | ✔️              | ✔️            | ✔️              |
+| Yandex          | ✔️              | ✔️            | ✔️              |
+| Brave           | ✔️              | ✔️            | ✔️              |
+| Vivaldi         | ✔️              | ✔️            | ✔️              |
+| Epic            | ✔️              | ✔️            | _not available_ |
+| Apple Safari    | _not available_ | _coming soon_ | _not available_ |
+| Opera           | _coming soon_   | _coming soon_ | _coming soon_   |
 
 ### License
 
