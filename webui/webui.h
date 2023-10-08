@@ -11,10 +11,13 @@
 #ifndef _WEBUI_H
 #define _WEBUI_H
 
-#define WEBUI_VERSION "2.4.0"
+#define WEBUI_VERSION "2.4.0 (Beta)"
 
 // Max windows, servers and threads
-#define WEBUI_MAX_IDS (512)
+#define WEBUI_MAX_IDS (256)
+
+// Max allowed argument's index
+#define WEBUI_MAX_ARG (16)
 
 // Dynamic Library Exports
 #if defined(_MSC_VER) || defined(__TINYC__)
@@ -104,18 +107,19 @@
 
 // -- Enums ---------------------------
 enum webui_browsers {
-    AnyBrowser = 0, // 0. Default recommended web browser
-    Chrome, // 1. Google Chrome
-    Firefox, // 2. Mozilla Firefox
-    Edge, // 3. Microsoft Edge
-    Safari, // 4. Apple Safari
-    Chromium, // 5. The Chromium Project
-    Opera, // 6. Opera Browser
-    Brave, // 7. The Brave Browser
-    Vivaldi, // 8. The Vivaldi Browser
-    Epic, // 9. The Epic Browser
-    Yandex, // 10. The Yandex Browser
-    ChromiumBased, // 11. Any Chromium based browser
+    NoBrowser = 0, // 0. No web browser
+    AnyBrowser = 1, // 1. Default recommended web browser
+    Chrome, // 2. Google Chrome
+    Firefox, // 3. Mozilla Firefox
+    Edge, // 4. Microsoft Edge
+    Safari, // 5. Apple Safari
+    Chromium, // 6. The Chromium Project
+    Opera, // 7. Opera Browser
+    Brave, // 8. The Brave Browser
+    Vivaldi, // 9. The Vivaldi Browser
+    Epic, // 10. The Epic Browser
+    Yandex, // 11. The Yandex Browser
+    ChromiumBased, // 12. Any Chromium based browser
 };
 
 enum webui_runtimes {
@@ -127,11 +131,9 @@ enum webui_runtimes {
 enum webui_events {
     WEBUI_EVENT_DISCONNECTED = 0, // 0. Window disconnection event
     WEBUI_EVENT_CONNECTED, // 1. Window connection event
-    WEBUI_EVENT_MULTI_CONNECTION, // 2. New window connection event
-    WEBUI_EVENT_UNWANTED_CONNECTION, // 3. New unwanted window connection event
-    WEBUI_EVENT_MOUSE_CLICK, // 4. Mouse click event
-    WEBUI_EVENT_NAVIGATION, // 5. Window navigation event
-    WEBUI_EVENT_CALLBACK, // 6. Function call event
+    WEBUI_EVENT_MOUSE_CLICK, // 2. Mouse click event
+    WEBUI_EVENT_NAVIGATION, // 3. Window navigation event
+    WEBUI_EVENT_CALLBACK, // 4. Function call event
 };
 
 // -- Structs -------------------------
@@ -139,9 +141,8 @@ typedef struct webui_event_t {
     size_t window; // The window object number
     size_t event_type; // Event type
     char* element; // HTML element ID
-    char* data; // JavaScript data
-    size_t size; // JavaScript data len
     size_t event_number; // Internal WebUI
+    size_t bind_id; // Bind ID
 } webui_event_t;
 
 // -- Definitions ---------------------
@@ -316,16 +317,6 @@ WEBUI_EXPORT void webui_set_timeout(size_t second);
 WEBUI_EXPORT void webui_set_icon(size_t window, const char* icon, const char* icon_type);
 
 /**
- * @brief Allow the window URL to be re-used in normal web browsers.
- * 
- * @param window The window number
- * @param status The status: True or False
- * 
- * @example webui_set_multi_access(myWindow, true);
- */
-WEBUI_EXPORT void webui_set_multi_access(size_t window, bool status);
-
-/**
  * @brief Base64 encoding. Use this to safely send text based data to the UI. If it fails it will return NULL.
  * 
  * @param str The string to encode (Should be null terminated)
@@ -417,7 +408,7 @@ WEBUI_EXPORT void webui_set_position(size_t window, unsigned int x, unsigned int
 WEBUI_EXPORT void webui_set_profile(size_t window, const char* name, const char* path);
 
 /**
- * @brief Get the full current URL
+ * @brief Get the full current URL.
  * 
  * @param window The window number
  *
@@ -437,6 +428,61 @@ WEBUI_EXPORT const char* webui_get_url(size_t window);
  */
 WEBUI_EXPORT void webui_navigate(size_t window, const char* url);
 
+/**
+ * @brief Free all memory resources. Should be called only at the end.
+ * 
+ * @example
+ * webui_wait();
+ * webui_clean();
+ */
+WEBUI_EXPORT void webui_clean();
+
+/**
+ * @brief Delete all local web-browser profiles folder. It should called at the end.
+ * 
+ * @example
+ * webui_wait();
+ * webui_delete_all_profiles();
+ * webui_clean();
+ */
+WEBUI_EXPORT void webui_delete_all_profiles();
+
+/**
+ * @brief Delete a specific window web-browser local folder profile.
+ * 
+ * @param window The window number
+ * 
+ * @example
+ * webui_wait();
+ * webui_delete_profile(myWindow);
+ * webui_clean();
+ * 
+ * @note This can break functionality of other windows if using the same web-browser.
+ */
+WEBUI_EXPORT void webui_delete_profile(size_t window);
+
+/**
+ * @brief Get the ID of the parent process (The web browser may re-create another new process).
+ * 
+ * @param window The window number
+ *
+ * @return Returns the the parent process id as integer
+ * 
+ * @example size_t id = webui_get_parent_process_id(myWindow);
+ */
+WEBUI_EXPORT size_t webui_get_parent_process_id(size_t window);
+
+/**
+ * @brief Get the ID of the last child process.
+ * 
+ * @param window The window number
+ *
+ * @return Returns the the child process id as integer
+ * 
+ * @example size_t id = webui_get_child_process_id(myWindow);
+ */
+WEBUI_EXPORT size_t webui_get_child_process_id(size_t window);
+
 // -- JavaScript ----------------------
 
 // Run JavaScript without waiting for the response.
@@ -448,14 +494,29 @@ WEBUI_EXPORT bool webui_script(size_t window, const char* script, size_t timeout
 // Chose between Deno and Nodejs as runtime for .js and .ts files.
 WEBUI_EXPORT void webui_set_runtime(size_t window, size_t runtime);
 
-// Parse argument as integer.
+// Get an argument as integer at a specific index
+WEBUI_EXPORT long long int webui_get_int_at(webui_event_t* e, size_t index);
+
+// Get the first argument as integer
 WEBUI_EXPORT long long int webui_get_int(webui_event_t* e);
 
-// Parse argument as string.
+// Get an argument as string at a specific index
+WEBUI_EXPORT const char* webui_get_string_at(webui_event_t* e, size_t index);
+
+// Get the first argument as string
 WEBUI_EXPORT const char* webui_get_string(webui_event_t* e);
 
-// Parse argument as boolean.
+// Get an argument as boolean at a specific index
+WEBUI_EXPORT bool webui_get_bool_at(webui_event_t* e, size_t index);
+
+// Get the first argument as boolean
 WEBUI_EXPORT bool webui_get_bool(webui_event_t* e);
+
+// Get the size in bytes of an argument at a specific index
+WEBUI_EXPORT size_t webui_get_size_at(webui_event_t* e, size_t index);
+
+// Get size in bytes of the first argument
+WEBUI_EXPORT size_t webui_get_size(webui_event_t* e);
 
 // Return the response to JavaScript as integer.
 WEBUI_EXPORT void webui_return_int(webui_event_t* e, long long int n);
@@ -466,29 +527,27 @@ WEBUI_EXPORT void webui_return_string(webui_event_t* e, const char* s);
 // Return the response to JavaScript as boolean.
 WEBUI_EXPORT void webui_return_bool(webui_event_t* e, bool b);
 
-// Get process id (The web browser may create another process for the window)
-WEBUI_EXPORT size_t webui_get_child_process_id(size_t window);
-WEBUI_EXPORT size_t webui_get_parent_process_id(size_t window);
-
 // -- Wrapper's Interface -------------
 
-// Bind a specific html element click event with a function. Empty element means all events. This replaces `webui_bind()`. The func is (Window, EventType, Element, Data, DataSize, EventNumber).
-WEBUI_EXPORT size_t webui_interface_bind(size_t window, const char* element, void (*func)(size_t, size_t, char*, char*, size_t, size_t));
+// Bind a specific html element click event with a function. Empty element means all events. This replaces `webui_bind()`. The func is (Window, EventType, Element, EventNumber, BindID).
+WEBUI_EXPORT size_t webui_interface_bind(size_t window, const char* element, void (*func)(size_t, size_t, char*, size_t, size_t));
 
 // When using `webui_interface_bind()`, you may need this function to easily set your callback response.
 WEBUI_EXPORT void webui_interface_set_response(size_t window, size_t event_number, const char* response);
 
-/**
- * @brief Check if the app still running.
- * 
- * @example if (webui_interface_is_app_running()) ...
- */
+// Check if the app still running.
 WEBUI_EXPORT bool webui_interface_is_app_running(void);
 
 // Get a unique window ID.
 WEBUI_EXPORT size_t webui_interface_get_window_id(size_t window);
 
-// Get a unique ID. Same ID as `webui_bind()`. Return > 0 if bind exist.
-WEBUI_EXPORT size_t webui_interface_get_bind_id(size_t window, const char* element);
+// Get an argument as string at a specific index
+WEBUI_EXPORT const char* webui_interface_get_string_at(size_t window, size_t event_number, size_t index);
+
+// Get an argument as integer at a specific index
+WEBUI_EXPORT long long int webui_interface_get_int_at(size_t window, size_t event_number, size_t index);
+
+// Get an argument as boolean at a specific index
+WEBUI_EXPORT bool webui_interface_get_bool_at(size_t window, size_t event_number, size_t index);
 
 #endif /* _WEBUI_H */
