@@ -18,9 +18,9 @@ package webui
 #cgo linux LDFLAGS: -Lwebui/webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
 
 #include <webui.h>
-extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, char* _data, size_t _size, size_t _event_number);
+extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, size_t _event_number, size_t _bind_id);
 static void go_webui_event_handler(webui_event_t* e) {
-	goWebuiEvent(e->window, e->event_type, e->element, e->data, e->size, e->event_number);
+	goWebuiEvent(e->window, e->event_type, e->element, e->event_number, e->bind_id);
 }
 static size_t go_webui_bind(size_t win, const char* element) {
 	return webui_bind(win, element, go_webui_event_handler);
@@ -34,9 +34,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
 	"unsafe"
 )
+
+type Window uint
 
 type Browser uint8
 
@@ -64,6 +65,8 @@ const (
 	Nodejs
 )
 
+// type cEvent C.webui_event
+
 type EventType uint8
 
 const (
@@ -76,16 +79,12 @@ const (
 	Callback
 )
 
-type Window uint
-
-type Data string
-
 type Event struct {
-	Window    Window
-	EventType EventType
-	Element   string
-	Data      Data
-	Size      uint
+	Window      Window
+	EventType   EventType
+	Element     string
+	eventNumber uint
+	bindId      uint
 }
 
 type ScriptOptions struct {
@@ -131,22 +130,18 @@ func NewWindowId() Window {
 // Private function that receives and handles webui events as go events
 //
 //export goWebuiEvent
-func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _data *C.char, _size C.size_t, _event_number C.size_t) {
-	funcId := uint(C.webui_interface_get_bind_id(_window, _element))
-	if funcId < 1 {
-		return
-	}
+func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _event_number C.size_t, _bind_id C.size_t) {
 	// Create a new event struct
 	w := Window(_window)
 	e := Event{
-		Window:    w,
-		EventType: EventType(_event_type),
-		Element:   C.GoString(_element),
-		Data:      Data(C.GoString(_data)),
-		Size:      uint(_size),
+		Window:      w,
+		EventType:   EventType(_event_type),
+		Element:     C.GoString(_element),
+		eventNumber: uint(_event_number),
+		bindId:      uint(_bind_id),
 	}
 	// Call user callback function
-	result := funcList[w][funcId](e)
+	result := funcList[w][uint(_bind_id)](e)
 	if result == nil {
 		return
 	}
@@ -239,11 +234,6 @@ func (w Window) SetIcon(icon string, icon_type string) {
 	C.webui_set_icon(C.size_t(w), C.CString(icon), C.CString(icon_type))
 }
 
-// SetMultiAccess determines whether the window URL can be reused in normal web browsers.
-func (w Window) SetMultiAccess(access bool) {
-	C.webui_set_multi_access(C.size_t(w), C._Bool(access))
-}
-
 // Encode sends text based data to the UI using base64 encoding.
 func Encode(str string) string {
 	return C.GoString(C.webui_encode(C.CString(str)))
@@ -334,54 +324,72 @@ func (e *getArgError) Error() string {
 	return fmt.Sprintf("Failed getting argument of type `%s` for `%s`. %v", e.typ, e.element, e.err)
 }
 
+func (e Event) cStruct() *C.webui_event_t {
+	return &C.webui_event_t{
+		window:       C.size_t(e.Window),
+		event_type:   C.size_t(e.EventType),
+		element:      C.CString(e.Element),
+		event_number: C.size_t(e.eventNumber),
+		bind_id:      C.size_t(e.bindId),
+	}
+}
+
+// GetSize returns the size of the first JavaScript argument.
+func (e Event) GetSize() uint {
+	return uint(C.webui_get_size(e.cStruct()))
+}
+
+// GetSize returns the size of the JavaScript at the specified index.
+func (e Event) GetSizeAt(idx uint) uint {
+	return uint(C.webui_get_size_at(e.cStruct(), C.size_t(idx)))
+}
+
 // Int parses the JavaScript argument as integer.
 func (e Event) Int() (arg int, err error) {
-	if e.Size == 0 {
+	cEvent := e.cStruct()
+	if uint(C.webui_get_size(cEvent)) == 0 {
 		err = &noArgError{e.Element}
 	}
-	arg, err = strconv.Atoi(string(e.Data))
-	if err != nil {
-		err = &getArgError{err, "int", e.Element}
-	}
+	arg = int(C.webui_get_int(cEvent))
 	return
 }
 
 // String parses the JavaScript argument as integer.
 func (e Event) String() (arg string, err error) {
-	if e.Size == 0 {
+	cEvent := e.cStruct()
+	if uint(C.webui_get_size(cEvent)) == 0 {
 		err = &noArgError{e.Element}
 	}
-	arg = string(e.Data)
+	arg = C.GoString(C.webui_get_string(cEvent))
 	return
 }
 
 // Bool parses the JavaScript argument as integer.
 func (e Event) Bool() (arg bool, err error) {
-	if e.Size == 0 {
+	cEvent := e.cStruct()
+	if uint(C.webui_get_size(cEvent)) == 0 {
 		err = &noArgError{e.Element}
 	}
-	arg, err = strconv.ParseBool(string(e.Data))
-	if err != nil {
-		err = &getArgError{err, "bool", e.Element}
-	}
+	arg = bool(C.webui_get_bool(cEvent))
 	return
 }
 
 // GetArg parses the JavaScript argument into a Go data type.
 func GetArg[T any](e Event) (arg T, err error) {
-	if e.Size == 0 {
+	cEvent := e.cStruct()
+	if uint(C.webui_get_size(cEvent)) == 0 {
 		err = &noArgError{e.Element}
 	}
 	var ret T
 	switch p := any(&ret).(type) {
 	case *string:
-		*p, err = e.String()
+		*p = C.GoString(C.webui_get_string(cEvent))
 	case *int:
-		*p, err = e.Int()
+		*p = int(C.webui_get_int(cEvent))
 	case *bool:
-		*p, err = e.Bool()
+		*p = bool(C.webui_get_bool(cEvent))
 	default:
-		err = json.Unmarshal([]byte(e.Data), p)
+		err = json.Unmarshal([]byte(C.GoString(C.webui_get_string(cEvent))), p)
 	}
 	arg = ret
 	return
