@@ -28,11 +28,11 @@ const doc = `<!DOCTYPE html>
 		<h1>WebUI - Call Go from JavaScript</h1>
 		<br>
 		<p>Call Go functions with arguments (<em>See the logs in your terminal</em>)</p>
-		<button onclick="webui.call('MyID_One', 'Hello');">Call my_function_string()</button>
+		<button onclick="webui.call('MyID_One', 'Hello', 'World');">Call my_function_string()</button>
 		<br>
-		<button onclick="webui.call('MyID_Two', 123456789);">Call my_function_integer()</button>
+		<button onclick="webui.call('MyID_Two', 123, 456, 789);">Call my_function_integer()</button>
 		<br>
-		<button onclick="webui.call('MyID_Three', true);">Call my_function_boolean()</button>
+		<button onclick="webui.call('MyID_Three', true, false);">Call my_function_boolean()</button>
 		<br>
 		<p>Call a V function that returns a response</p>
 		<button onclick="MyJS();">Call my_function_with_response()</button>
@@ -51,18 +51,16 @@ const doc = `<!DOCTYPE html>
 // JavaScript:
 // webui.call('MyID_One', 'Hello');
 func myFunctionString(e ui.Event) ui.Void {
-	response, err := e.String()
+	str1, err := ui.GetArg[string](e)
 	if err != nil {
 		fmt.Println(err)
 		return nil
 	}
+	// Omit error handling from here on for brevity.
+	str2, _ := ui.GetArgAt[string](e, 1)
 
-	fmt.Printf("myFunctionString: %s\n", response) // Hello
-
-	// Need Multiple Arguments?
-	//
-	// WebUI supports only one argument. For multiple arguments,
-	// send a JSON string from JavaScript and decode it.
+	fmt.Printf("myFunctionString 1: %s\n", str1) // Hello
+	fmt.Printf("myFunctionString 2: %s\n", str2) // World
 
 	return nil
 }
@@ -70,9 +68,13 @@ func myFunctionString(e ui.Event) ui.Void {
 // JavaScript:
 // webui.call('MyID_Two', 123456789);
 func myFunctionInteger(e ui.Event) ui.Void {
-	response, _ := ui.GetArg[int](e)
+	num1, _ := ui.GetArgAt[int](e, 0)
+	num2, _ := ui.GetArgAt[int](e, 1)
+	num3, _ := ui.GetArgAt[int](e, 2)
 
-	fmt.Printf("myFunctionInteger: %d\n", response) // 123456789
+	fmt.Printf("myFunctionInteger 1: %d\n", num1) // 123
+	fmt.Printf("myFunctionInteger 2: %d\n", num2) // 456
+	fmt.Printf("myFunctionInteger 3: %d\n", num3) // 789
 
 	return nil
 }
@@ -80,9 +82,11 @@ func myFunctionInteger(e ui.Event) ui.Void {
 // JavaScript:
 // webui.call('MyID_Three', true);
 func myFunctionBoolean(e ui.Event) ui.Void {
-	response, _ := ui.GetArg[bool](e)
+	status1, _ := ui.GetArg[bool](e)
+	status2, _ := ui.GetArgAt[bool](e, 1)
 
-	fmt.Printf("myFunctionBoolean: %t\n", response) // true
+	fmt.Printf("myFunctionBoolean 1: %t\n", status1) // true
+	fmt.Printf("myFunctionBoolean 2: %t\n", status2) // false
 
 	return nil
 }
