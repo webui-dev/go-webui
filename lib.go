@@ -34,6 +34,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"unsafe"
 )
 
@@ -359,7 +360,9 @@ func GetArg[T any](e Event) (arg T, err error) {
 	case *bool:
 		*p = bool(C.webui_get_bool(cEvent))
 	default:
-		err = json.Unmarshal([]byte(C.GoString(C.webui_get_string(cEvent))), p)
+		if jsonErr := json.Unmarshal([]byte(C.GoString(C.webui_get_string(cEvent))), p); err != nil {
+			err = &getArgError{jsonErr, e.Element, reflect.TypeOf(ret).String()}
+		}
 	}
 	arg = ret
 	return
@@ -381,7 +384,9 @@ func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
 	case *bool:
 		*p = bool(C.webui_get_bool_at(cEvent, cIdx))
 	default:
-		err = json.Unmarshal([]byte(C.GoString(C.webui_get_string_at(cEvent, cIdx))), p)
+		if jsonErr := json.Unmarshal([]byte(C.GoString(C.webui_get_string_at(cEvent, cIdx))), p); err != nil {
+			err = &getArgError{jsonErr, e.Element, reflect.TypeOf(ret).String()}
+		}
 	}
 	arg = ret
 	return
