@@ -19,7 +19,7 @@ func events(e ui.Event) any {
 	} else if e.EventType == ui.MouseClick {
 		println("Click.")
 	} else if e.EventType == ui.Navigation {
-		target, _ := e.String()
+		target, _ := ui.GetArg[string](e)
 		println("Starting navigation to: ", target)
 		// Since we bind all events, following `href` links is blocked by WebUI.
 		// To control the navigation, we need to use `Navigate()`.
