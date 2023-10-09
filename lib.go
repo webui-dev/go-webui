@@ -66,8 +66,6 @@ const (
 	Nodejs
 )
 
-// type cEvent C.webui_event
-
 type EventType uint8
 
 const (
