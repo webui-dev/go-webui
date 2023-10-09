@@ -344,36 +344,6 @@ func (e Event) GetSizeAt(idx uint) uint {
 	return uint(C.webui_get_size_at(e.cStruct(), C.size_t(idx)))
 }
 
-// Int parses the JavaScript argument as integer.
-func (e Event) Int() (arg int, err error) {
-	cEvent := e.cStruct()
-	if uint(C.webui_get_size(cEvent)) == 0 {
-		err = &noArgError{e.Element}
-	}
-	arg = int(C.webui_get_int(cEvent))
-	return
-}
-
-// String parses the JavaScript argument as integer.
-func (e Event) String() (arg string, err error) {
-	cEvent := e.cStruct()
-	if uint(C.webui_get_size(cEvent)) == 0 {
-		err = &noArgError{e.Element}
-	}
-	arg = C.GoString(C.webui_get_string(cEvent))
-	return
-}
-
-// Bool parses the JavaScript argument as integer.
-func (e Event) Bool() (arg bool, err error) {
-	cEvent := e.cStruct()
-	if uint(C.webui_get_size(cEvent)) == 0 {
-		err = &noArgError{e.Element}
-	}
-	arg = bool(C.webui_get_bool(cEvent))
-	return
-}
-
 // GetArg parses the JavaScript argument into a Go data type.
 func GetArg[T any](e Event) (arg T, err error) {
 	cEvent := e.cStruct()
@@ -390,6 +360,28 @@ func GetArg[T any](e Event) (arg T, err error) {
 		*p = bool(C.webui_get_bool(cEvent))
 	default:
 		err = json.Unmarshal([]byte(C.GoString(C.webui_get_string(cEvent))), p)
+	}
+	arg = ret
+	return
+}
+
+// GetArgAt parses the JavaScript argument with the specified index into a Go data type.
+func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
+	cEvent := e.cStruct()
+	cIdx := C.size_t(idx)
+	if uint(C.webui_get_size_at(cEvent, cIdx)) == 0 {
+		err = &noArgError{e.Element}
+	}
+	var ret T
+	switch p := any(&ret).(type) {
+	case *string:
+		*p = C.GoString(C.webui_get_string_at(cEvent, cIdx))
+	case *int:
+		*p = int(C.webui_get_int_at(cEvent, cIdx))
+	case *bool:
+		*p = bool(C.webui_get_bool_at(cEvent, cIdx))
+	default:
+		err = json.Unmarshal([]byte(C.GoString(C.webui_get_string_at(cEvent, cIdx))), p)
 	}
 	arg = ret
 	return
