@@ -73,8 +73,6 @@ type EventType uint8
 const (
 	Disconnected EventType = iota
 	Connected
-	MultiConnection
-	UnwantedConnection
 	MouseClick
 	Navigation
 	Callback
