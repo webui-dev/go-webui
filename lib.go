@@ -18,12 +18,9 @@ package webui
 #cgo linux LDFLAGS: -Lwebui/webui-linux-gcc-x64 -lwebui-2-static -lpthread -lm
 
 #include <webui.h>
-extern void goWebuiEvent(size_t _window, size_t _event_type, char* _element, size_t _event_number, size_t _bind_id);
-static void go_webui_event_handler(webui_event_t* e) {
-	goWebuiEvent(e->window, e->event_type, e->element, e->event_number, e->bind_id);
-}
+extern void goWebuiEventHandler(webui_event_t* e);
 static size_t go_webui_bind(size_t win, const char* element) {
-	return webui_bind(win, element, go_webui_event_handler);
+	return webui_bind(win, element, goWebuiEventHandler);
 }
 */
 import "C"
@@ -124,21 +121,20 @@ func NewWindowId() Window {
 	return Window(C.webui_get_new_window_id())
 }
 
-// Private function that receives and handles webui events as go events
+// Private function that receives and handles webui events as go events.
 //
-//export goWebuiEvent
-func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _event_number C.size_t, _bind_id C.size_t) {
-	// Create a new event struct
-	w := Window(_window)
-	e := Event{
-		Window:      w,
-		EventType:   EventType(_event_type),
-		Element:     C.GoString(_element),
-		eventNumber: uint(_event_number),
-		bindId:      uint(_bind_id),
+//export goWebuiEventHandler
+func goWebuiEventHandler(e *C.webui_event_t) {
+	// Create Go event from C event.
+	goEvent := Event{
+		Window:      Window(e.window),
+		EventType:   EventType(e.event_type),
+		Element:     C.GoString(e.element),
+		eventNumber: uint(e.event_number),
+		bindId:      uint(e.bind_id),
 	}
-	// Call user callback function
-	result := funcList[w][uint(_bind_id)](e)
+	// Call user callback function.
+	result := funcList[goEvent.Window][goEvent.bindId](goEvent)
 	if result == nil {
 		return
 	}
@@ -146,7 +142,7 @@ func goWebuiEvent(_window C.size_t, _event_type C.size_t, _element *C.char, _eve
 	if err != nil {
 		log.Println("Failed encoding JS result into JSON", err)
 	}
-	C.webui_interface_set_response(_window, _event_number, C.CString(string(response)))
+	C.webui_interface_set_response(e.window, e.event_number, C.CString(string(response)))
 }
 
 // Bind binds a specific html element click event with a function. Empty element means all events.
