@@ -14,7 +14,7 @@
 $current_location = Get-Location
 
 $module = "github.com/webui-dev/go-webui/v2"
-$version="v2.4.0-beta" # TODO: fetch latest version automatically and allow to set version via flag
+$version="v2.4.0-beta.1" # TODO: fetch latest version automatically and allow to set version via flag
 $release_base_url = "https://github.com/webui-dev/webui/releases/"
 
 # Determine the release archive for the used platform and architecture.

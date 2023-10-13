@@ -53,7 +53,7 @@
 1. Download the go module
 
 ```sh
-go get github.com/webui-dev/go-webui/v2/@v2.4.0-beta
+go get github.com/webui-dev/go-webui/v2/@v2.4.0-beta.1
 ```
 
 2. Setup the WebUI C library
