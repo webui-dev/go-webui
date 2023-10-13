@@ -10,6 +10,9 @@
 # less logic but the idea is to eventually dynamically determine the latest version to also support versions
 # like `@latest` or commit SHAs.
 
+# Store the current location to restore it at the end of the script.
+$current_location = Get-Location
+
 $module = "github.com/webui-dev/go-webui/v2"
 $version="v2.4.0-beta" # TODO: fetch latest version automatically and allow to set version via flag
 $release_base_url = "https://github.com/webui-dev/webui/releases/"
@@ -18,19 +21,25 @@ $release_base_url = "https://github.com/webui-dev/webui/releases/"
 # For this Windows script this is currently only x64.
 $platform = [System.Environment]::OSVersion.Platform
 $architecture = [System.Environment]::Is64BitOperatingSystem
-switch -wildcard ($platform) {
-	"Win32NT" {
-		switch -wildcard ($architecture) {
-			"True" {
+switch -wildcard ($platform)
+{
+	"Win32NT"
+	{
+		switch -wildcard ($architecture)
+		{
+			"True"
+			{
 				$archive = "webui-windows-gcc-x64.zip"
 			}
-			default {
+			default
+			{
 				Write-Host "The setup script currently does not support $arch architectures on Windows."
 				exit 1
 			}
 		}
 	}
-	default {
+	default
+	{
 		Write-Host "The setup script currently does not support $platform."
 		exit 1
 	}
@@ -40,22 +49,28 @@ switch -wildcard ($platform) {
 # Defaults
 $output = "webui"
 $nightly = $true # TODO: After WebUI v2.4.0 release, remove default, to set nightly to false.
-for ($i = 0; $i -lt $args.Length; $i++) {
-	switch -wildcard ($args[$i]) {
-		'--output' {
+for ($i = 0; $i -lt $args.Length; $i++)
+{
+	switch -wildcard ($args[$i])
+	{
+		'--output'
+		{
 			$output = $args[$i + 1]
 			$i++
 			break
 		}
-		'--nightly' {
+		'--nightly'
+		{
 			$nightly = $true
 			break
 		}
-		'--local' {
+		'--local'
+		{
 			$local = $true
 			break
 		}
-		'--help' {
+		'--help'
+		{
 			Write-Host "Usage: setup.ps1 [flags]"
 			Write-Host ""
 			Write-Host "Flags:"
@@ -65,36 +80,41 @@ for ($i = 0; $i -lt $args.Length; $i++) {
 			Write-Host "  -h, --help: Display this help message"
 			exit 0
 		}
-		default {
+		default
+		{
 			Write-Host "Unknown option: $($args[$i])"
 			exit 1
 		}
 	}
 }
 
-if ($local -eq $false) {
+if ($local -eq $true)
+{
+	Set-Location v2
+	# TODO: add path verification for local setup
+} else
+{
 	# Verify GOPATH.
-	if ([string]::IsNullOrEmpty($Env:GOPATH)) {
+	if ([string]::IsNullOrEmpty($Env:GOPATH))
+	{
 		Write-Host "Warning: GOPATH is not set."
 		$go_path = "$Env:USERPROFILE\go"
 		Write-Host "Trying to use $go_path instead."
-	} else {
+	} else
+	{
 		$go_path = $Env:GOPATH
 	}
 
 	# Verify that module package is installed.
 	$module_path = Join-Path $go_path "pkg\mod\$module@$version"
-	if (-not (Test-Path $module_path -PathType Container)) {
+	if (-not (Test-Path $module_path -PathType Container))
+	{
 		Write-Host "Error: '$module_path' does not exist in GOPATH."
 		Write-Host "Make sure to run 'go get $module@$version' first."
 		exit 1
 	}
 
-	# Store the current location end the script in the current directory.
-	$current_location = Get-Location
 	Set-Location $module_path
-	# Move back up from major version `v2` path, into "repository root".
-	cd ..
 }
 
 $archive_dir = $archive.Replace(".zip", "")
@@ -106,9 +126,11 @@ Remove-Item -Path $output -Recurse -Force -ErrorAction SilentlyContinue
 
 # Download and extract the archive.
 Write-Host "Downloading..."
-if ($nightly -eq $true) {
+if ($nightly -eq $true)
+{
 	$url = "${release_base_url}download/nightly/$archive"
-} else {
+} else
+{
 	$url = "${release_base_url}latest/download/$archive"
 }
 Invoke-WebRequest -Uri $url -OutFile $archive
@@ -123,6 +145,4 @@ Remove-Item -Path $archive -Force
 Remove-Item -Path $archive_dir -Recurse -Force
 
 Write-Host "Done."
-if ($local -eq $false) {
-	Set-Location $current_location
-}
+Set-Location $current_location

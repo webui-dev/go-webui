@@ -92,7 +92,10 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [ "$local" = false ]; then
+if [ "$local" = true ]; then
+	cd v2
+	# TODO: add path verification for local setup
+else
 	# Verify GOPATH.
 	if [[ -z "${GOPATH}" ]]; then
 		echo "Warning: GOPATH is not set."
@@ -113,8 +116,6 @@ if [ "$local" = false ]; then
 	# Make sure the go modules directory is writable for the current user.
 	chmod +w "$module_path"
 	cd "$module_path"
-	# Move back up from major version `v2` path, into "repository root".
-	cd ..
 fi
 
 # Clean old library files.

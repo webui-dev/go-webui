@@ -9,12 +9,14 @@
 *.obj
 *.iobj
 *.o
-webui/
 
 # All sub-level build binaries
 */**/*
 !*/**/*/
 !*/**/*.*
+
+# WebUI library files
+webui/
 
 # Logs
 *.log

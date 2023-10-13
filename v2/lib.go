@@ -11,7 +11,7 @@ package webui
 */
 
 /*
-#cgo CFLAGS: -I../webui/include
+#cgo CFLAGS: -Iwebui/include
 #include "webui.h"
 extern void goWebuiEventHandler(webui_event_t* e);
 static size_t go_webui_bind(size_t win, const char* element) {
