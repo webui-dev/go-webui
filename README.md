@@ -81,20 +81,28 @@ irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
 
 _This approach can be useful for quick testing and for development and contribution purposes._
 
-To clone the repository and setup the WebUI library in a local directory and run the examples, run:
+1. Clone the repository to into a `go-webui` directory, relative to your current path
 
 ```sh
-# Clone the repository to into a `go-webui` directory, relative to your current path
 git clone https://github.com/webui-dev/go-webui.git
+```
+
+2. Setup the WebUI C library
+
+```sh
 cd go-webui
 
 # Setup WebUI C relative to the current path
 # Linux & macOS
 ./setup.sh --local
+
 # Windows Powershell
 .\setup.ps1 --local
+```
 
-# Run examples
+3. Run examples
+
+```sh
 cd v2/examples
 go run minimal.go
 ```
