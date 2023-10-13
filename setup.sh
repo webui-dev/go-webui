@@ -113,6 +113,8 @@ if [ "$local" = false ]; then
 	# Make sure the go modules directory is writable for the current user.
 	chmod +w "$module_path"
 	cd "$module_path"
+	# Move back up from major version `v2` path, into "repository root".
+	cd ..
 fi
 
 # Clean old library files.

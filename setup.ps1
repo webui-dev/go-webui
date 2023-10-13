@@ -93,6 +93,8 @@ if ($local -eq $false) {
 	# Store the current location end the script in the current directory.
 	$current_location = Get-Location
 	Set-Location $module_path
+	# Move back up from major version `v2` path, into "repository root".
+	cd ..
 }
 
 $archive_dir = $archive.Replace(".zip", "")
