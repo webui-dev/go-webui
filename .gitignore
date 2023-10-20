@@ -18,6 +18,9 @@
 # WebUI library files
 webui/
 
+# Examples in module directory
+v2/examples
+
 # Logs
 *.log
 *.logs

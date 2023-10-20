@@ -100,9 +100,10 @@ cd go-webui
 .\setup.ps1 --local
 ```
 
-3. Run examples
+3. Use the local go-webui module to run examples
 
 ```sh
+cp -r examples v2/
 cd v2/examples
 go run minimal.go
 ```
