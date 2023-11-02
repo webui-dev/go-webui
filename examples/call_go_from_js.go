@@ -27,7 +27,7 @@ const doc = `<!DOCTYPE html>
 	<body>
 		<h1>WebUI - Call Go from JavaScript</h1>
 		<br>
-		<p>Call V functions with arguments (<em>See the logs in your terminal</em>)</p>
+		<p>Call Go functions with arguments (<em>See the logs in your terminal</em>)</p>
 		<button onclick="webui.handleStr('Hello', 'World');">Call handle_str()</button>
 		<br>
 		<button onclick="webui.handleInt(123, 456, 789);">Call handle_int()</button>
