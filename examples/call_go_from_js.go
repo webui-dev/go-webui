@@ -27,30 +27,29 @@ const doc = `<!DOCTYPE html>
 	<body>
 		<h1>WebUI - Call Go from JavaScript</h1>
 		<br>
-		<p>Call Go functions with arguments (<em>See the logs in your terminal</em>)</p>
-		<button onclick="webui.call('MyID_One', 'Hello', 'World');">Call my_function_string()</button>
+		<p>Call V functions with arguments (<em>See the logs in your terminal</em>)</p>
+		<button onclick="webui.handleStr('Hello', 'World');">Call handle_str()</button>
 		<br>
-		<button onclick="webui.call('MyID_Two', 123, 456, 789);">Call my_function_integer()</button>
+		<button onclick="webui.handleInt(123, 456, 789);">Call handle_int()</button>
 		<br>
-		<button onclick="webui.call('MyID_Three', true, false);">Call my_function_boolean()</button>
+		<button onclick="webui.handleBool(true, false);">Call handle_bool()</button>
 		<br>
-		<p>Call a V function that returns a response</p>
-		<button onclick="MyJS();">Call my_function_with_response()</button>
-		<div>Double: <input type="text" id="MyInputID" value="2"></div>
+		<p>Call a Go function that returns a response</p>
+		<button onclick="getRespFromGo();">Call get_response()</button>
+		<div>Double: <input type="text" id="my-input" value="2"></div>
 		<script>
-			async function MyJS() {
-				const MyInput = document.getElementById("MyInputID");
-				const number = MyInput.value;
-				const result = await webui.call("MyID_Four", number);
-				MyInput.value = result;
+			async function getRespFromGo() {
+				const myInput = document.getElementById("my-input");
+				const number = myInput.value;
+				const result = await webui.handleResp(number);
+				myInput.value = result;
 			}
 		</script>
 	</body>
 </html>`
 
-// JavaScript:
-// webui.call('MyID_One', 'Hello');
-func myFunctionString(e ui.Event) ui.Void {
+// JavaScript: `webui.handleStr('Hello', 'World');`
+func handleStr(e ui.Event) ui.Void {
 	str1, err := ui.GetArg[string](e)
 	if err != nil {
 		fmt.Println(err)
@@ -59,45 +58,42 @@ func myFunctionString(e ui.Event) ui.Void {
 	// Omit error handling from here on for brevity.
 	str2, _ := ui.GetArgAt[string](e, 1)
 
-	fmt.Printf("myFunctionString 1: %s\n", str1) // Hello
-	fmt.Printf("myFunctionString 2: %s\n", str2) // World
+	fmt.Printf("handleStr 1: %s\n", str1) // Hello
+	fmt.Printf("handleStr 2: %s\n", str2) // World
 
 	return nil
 }
 
-// JavaScript:
-// webui.call('MyID_Two', 123456789);
-func myFunctionInteger(e ui.Event) ui.Void {
+// JavaScript: `webui.handleInt(123, 456, 789);`
+func handleInt(e ui.Event) ui.Void {
 	num1, _ := ui.GetArgAt[int](e, 0)
 	num2, _ := ui.GetArgAt[int](e, 1)
 	num3, _ := ui.GetArgAt[int](e, 2)
 
-	fmt.Printf("myFunctionInteger 1: %d\n", num1) // 123
-	fmt.Printf("myFunctionInteger 2: %d\n", num2) // 456
-	fmt.Printf("myFunctionInteger 3: %d\n", num3) // 789
+	fmt.Printf("handleInt 1: %d\n", num1) // 123
+	fmt.Printf("handleInt 2: %d\n", num2) // 456
+	fmt.Printf("handleInt 3: %d\n", num3) // 789
 
 	return nil
 }
 
-// JavaScript:
-// webui.call('MyID_Three', true);
-func myFunctionBoolean(e ui.Event) ui.Void {
+// JavaScript: webui.handleBool(true, false);
+func handleBool(e ui.Event) ui.Void {
 	status1, _ := ui.GetArg[bool](e)
 	status2, _ := ui.GetArgAt[bool](e, 1)
 
-	fmt.Printf("myFunctionBoolean 1: %t\n", status1) // true
-	fmt.Printf("myFunctionBoolean 2: %t\n", status2) // false
+	fmt.Printf("handleBool 1: %t\n", status1) // true
+	fmt.Printf("handleBool 2: %t\n", status2) // false
 
 	return nil
 }
 
-// JavaScript:
-// const result = webui.call('MyID_Four', number);
-func myFunctionWithResponse(e ui.Event) int {
+// JavaScript: `const result = await webui.getResponse(number);`
+func handleResp(e ui.Event) int {
 	number, _ := ui.GetArg[int](e)
 
 	response := number * 2
-	fmt.Printf("myFunctionWithResponse: %d\n", response)
+	fmt.Printf("handleResp: %d\n", response)
 
 	return response
 }
@@ -107,10 +103,10 @@ func main() {
 	w := ui.NewWindow()
 
 	// Bind go functions.
-	ui.Bind(w, "MyID_One", myFunctionString)
-	ui.Bind(w, "MyID_Two", myFunctionInteger)
-	ui.Bind(w, "MyID_Three", myFunctionBoolean)
-	ui.Bind(w, "MyID_Four", myFunctionWithResponse)
+	ui.Bind(w, "handleStr", handleStr)
+	ui.Bind(w, "handleInt", handleInt)
+	ui.Bind(w, "handleBool", handleBool)
+	ui.Bind(w, "handleResp", handleResp)
 
 	// Show html UI.
 	w.Show(doc)
