@@ -23,9 +23,9 @@
 ## Features
 
 - Parent library written in pure C
-- Fully Independent (No need for any third-party runtimes)
+- Fully Independent (_No need for any third-party runtimes_)
 - Lightweight ~200 Kb & Small memory footprint
-- Fast binary communication protocol between WebUI and the browser (Instead of JSON)
+- Fast binary communication protocol between WebUI and the browser (_Instead of JSON_)
 - One header file
 - Multi-platform & Multi-Browser
 - Using private profile for safety
