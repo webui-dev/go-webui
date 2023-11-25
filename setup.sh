@@ -119,9 +119,7 @@ else
 fi
 
 # Clean old library files.
-rm -rf "${output}/include/webui.h" "${output}/include/webui.hpp" \
-	"${output}/debug/libwebui-2-static.a" "${output}/debug/webui-2.dylib" "${output}/debug/webui-2.dll" \
-	"${output}/libwebui-2-static.a" "${output}/webui-2.dylib" "${output}/webui-2.dll"
+rm -rf "${output}"
 
 # Download and extract the archive.
 echo "Downloading..."
