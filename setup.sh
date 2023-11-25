@@ -136,7 +136,7 @@ echo ""
 # Move the extracted files to the output directory.
 echo "Extracting..."
 archive_dir="${archive%.zip}"
-unzip "$archive"
+unzip -o "$archive"
 mv "$archive_dir" "$output"
 echo ""
 
