@@ -23,13 +23,13 @@ case "$platform" in
 	Linux)
 		case "$arch" in
 			x86_64)
-				archive="webui-linux-gcc-x64.tar.gz"
+				archive="webui-linux-gcc-x64.zip"
 				;;
 			aarch64|arm64)
-				archive="webui-linux-gcc-aarch64.tar.gz"
+				archive="webui-linux-gcc-aarch64.zip"
 				;;
 			arm*)
-				archive="webui-linux-gcc-arm.tar.gz"
+				archive="webui-linux-gcc-arm.zip"
 				;;
 			*)
 				echo "The setup script currently does not support $arch architectures on $platform."
@@ -40,10 +40,10 @@ case "$platform" in
 	Darwin)
 		case "$arch" in
 			x86_64)
-				archive="webui-macos-clang-x64.tar.gz"
+				archive="webui-macos-clang-x64.zip"
 				;;
 			arm64)
-				archive="webui-macos-clang-arm64.tar.gz"
+				archive="webui-macos-clang-arm64.zip"
 				;;
 			*)
 				echo "The setup script currently does not support $arch architectures on $platform."
@@ -135,8 +135,8 @@ echo ""
 
 # Move the extracted files to the output directory.
 echo "Extracting..."
-archive_dir="${archive%.tar.*}"
-tar -xvzf "$archive"
+archive_dir="${archive%.zip}"
+unzip "$archive"
 mv "$archive_dir" "$output"
 echo ""
 
