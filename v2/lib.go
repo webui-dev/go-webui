@@ -242,6 +242,11 @@ func (w Window) SetSize(width uint, height uint) {
 	C.webui_set_size(C.size_t(w), C.uint(width), C.uint(height))
 }
 
+// SetPort sets a custom web-server network port to be used by WebUI.
+func (w Window) SetPort(port uint) {
+	C.webui_set_port(C.size_t(w), C.size_t(port))
+}
+
 // SetPosition sets the window position.
 func (w Window) SetPosition(x uint, y uint) {
 	C.webui_set_position(C.size_t(w), C.uint(x), C.uint(y))
