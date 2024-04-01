@@ -447,23 +447,3 @@ func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
 	return
 }
 
-// Return return the response to JavaScript.
-func Return[T any](e Event, value T) (err error) {
-	cEvent := e.cStruct()
-
-	switch v := any(&value).(type) {
-	case string:
-		C.webui_return_string(cEvent, C.CString(v))
-	case int:
-		C.webui_return_int(cEvent, C.longlong(v))
-	case int32:
-		C.webui_return_int(cEvent, C.longlong(v))
-	case int64:
-		C.webui_return_int(cEvent, C.longlong(v))
-	case bool:
-		C.webui_return_bool(cEvent, C.bool_t(v))
-	default:
-		err = &returnError{e.Element, reflect.TypeOf(value).String()}
-	}
-	return
-}
