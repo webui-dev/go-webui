@@ -14,9 +14,6 @@ package webui
 #cgo CFLAGS: -Iwebui/include
 #include "webui.h"
 
-typedef bool bool_t;
-
-// for webui_bind
 extern void goWebuiEventHandler(webui_event_t* e);
 static size_t go_webui_bind(size_t win, const char* element) {
 	return webui_bind(win, element, goWebuiEventHandler);
@@ -281,7 +278,7 @@ func (w Window) GetUrl() string {
 
 // SetPublic allows a specific window address to be accessible from a public network
 func (w Window) SetPublic(name string, status bool) {
-	C.webui_set_public(C.size_t(w), C.bool_t(status))
+	C.webui_set_public(C.size_t(w), C._Bool(status))
 }
 
 // Navigate navigates to a specific URL
