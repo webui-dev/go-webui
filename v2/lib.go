@@ -202,7 +202,13 @@ func (w Window) SetRootFolder(path string) {
 }
 
 // SetRootFolder sets the web-server root folder path for all windows.
+// Deprecated: use SetDefaultRootFolder instead
 func SetRootFolder(path string) {
+	C.webui_set_default_root_folder(C.CString(path))
+}
+
+// SetDefaultRootFolder sets the web-server root folder path for all windows.
+func SetDefaultRootFolder(path string) {
 	C.webui_set_default_root_folder(C.CString(path))
 }
 
@@ -254,14 +260,63 @@ func (w Window) SetProfile(name string, path string) {
 	C.webui_set_profile(C.size_t(w), C.CString(name), C.CString(path))
 }
 
+// SetProxy sets the web browser proxyServer to use. Need to be called before `Show()`.
+func (w Window) SetProxy(name string, proxyServer string) {
+	C.webui_set_proxy(C.size_t(w), C.CString(proxyServer))
+}
+
 // GetUrl returns the full current URL
 func (w Window) GetUrl() string {
 	return C.GoString(C.webui_get_url(C.size_t(w)))
 }
 
-// Navigate navigates to a specific URL
+// SetPublic allows a specific window address to be accessible from a public network.
+func (w Window) SetPublic(name string, status bool) {
+	C.webui_set_public(C.size_t(w), C._Bool(status))
+}
+
+// Navigate navigates to a specific URL.
 func (w Window) Navigate(url string) {
 	C.webui_navigate(C.size_t(w), C.CString(url))
+}
+
+// Clean frees all memory resources. It should only be called at the end.
+func Clean() {
+	C.webui_clean()
+}
+
+// DeleteAllProfiles deletes all local web-browser profile folders. It should only be called at the end.
+func DeleteAllProfiles() {
+	C.webui_delete_all_profiles()
+}
+
+// DeleteProfile deletes the specified windows local web-browser profile folder.
+func (w Window) DeleteProfile() {
+	C.webui_delete_profile(C.size_t(w))
+}
+
+// GetParentProcessID returns the ID of the parent process (The web browser may re-create another new process).
+func (w Window) GetParentProcessID() uint64 {
+	return uint64(C.webui_get_parent_process_id(C.size_t(w)))
+}
+
+// GetParentProcessID returns the ID of the last child process.
+func (w Window) GetChildProcessID() uint64 {
+	return uint64(C.webui_get_child_process_id(C.size_t(w)))
+}
+
+// SetPort sets a custom web-server network port to be used by WebUI.
+func (w Window) SetPort(port uint) bool {
+	return bool(C.webui_set_port(C.size_t(w), C.size_t(port)))
+}
+
+// == SSL/TLS ================================================================
+
+// SetTLSCertificate sets the SSL/TLS certificate and the private key content,
+// both in PEM format. This works only with the `webui-2-secure` library.
+// If set to empty, WebUI will generate a self-signed certificate.
+func SetTLSCertificate(certificate_pem string, private_key_pem string) {
+	C.webui_set_tls_certificate(C.CString(certificate_pem), C.CString(private_key_pem))
 }
 
 // == Javascript ==============================================================
