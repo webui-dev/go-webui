@@ -13,7 +13,6 @@ package webui
 /*
 #cgo CFLAGS: -Iwebui/include
 #include "webui.h"
-
 extern void goWebuiEventHandler(webui_event_t* e);
 static size_t go_webui_bind(size_t win, const char* element) {
 	return webui_bind(win, element, goWebuiEventHandler);
@@ -373,10 +372,6 @@ func (e *getArgError) Error() string {
 	return fmt.Sprintf("Failed getting argument of type `%s` for `%s`. %v", e.typ, e.element, e.err)
 }
 
-func (e *returnError) Error() string {
-	return fmt.Sprintf("Failed returning the response of type `%s` for `%s`.", e.typ, e.element)
-}
-
 func (e Event) cStruct() *C.webui_event_t {
 	return &C.webui_event_t{
 		window:       C.size_t(e.Window),
@@ -443,4 +438,3 @@ func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
 	arg = ret
 	return
 }
-
