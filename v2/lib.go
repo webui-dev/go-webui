@@ -93,11 +93,6 @@ type getArgError struct {
 	typ     string
 }
 
-type returnError struct {
-	element string
-	typ     string
-}
-
 // User Go Callback Functions list
 var funcList = make(map[Window]map[uint]func(Event) any)
 
@@ -275,27 +270,27 @@ func (w Window) GetUrl() string {
 	return C.GoString(C.webui_get_url(C.size_t(w)))
 }
 
-// SetPublic allows a specific window address to be accessible from a public network
+// SetPublic allows a specific window address to be accessible from a public network.
 func (w Window) SetPublic(name string, status bool) {
 	C.webui_set_public(C.size_t(w), C._Bool(status))
 }
 
-// Navigate navigates to a specific URL
+// Navigate navigates to a specific URL.
 func (w Window) Navigate(url string) {
 	C.webui_navigate(C.size_t(w), C.CString(url))
 }
 
-// Clean free all memory resources. Should be called only at the end.
+// Clean frees all memory resources. It should only be called at the end.
 func Clean() {
 	C.webui_clean()
 }
 
-// DeleteAllProfiles deletes all local web-browser profiles folder. It should called at the end.
+// DeleteAllProfiles deletes all local web-browser profile folders. It should only be called at the end.
 func DeleteAllProfiles() {
 	C.webui_delete_all_profiles()
 }
 
-// DeleteProfile deletes a specific window web-browser local folder profile.
+// DeleteProfile deletes the specified windows local web-browser profile folder.
 func (w Window) DeleteProfile() {
 	C.webui_delete_profile(C.size_t(w))
 }
@@ -315,11 +310,11 @@ func (w Window) SetPort(port uint) bool {
 	return bool(C.webui_set_port(C.size_t(w), C.size_t(port)))
 }
 
-// -- SSL/TLS -------------------------
+// == SSL/TLS ================================================================
 
-// Run sets the SSL/TLS certificate and the private key content, both in PEM
-// format. This works only with `webui-2-secure` library. If set empty WebUI
-// will generate a self-signed certificate.
+// SetTLSCertificate sets the SSL/TLS certificate and the private key content,
+// both in PEM format. This works only with the `webui-2-secure` library.
+// If set to empty, WebUI will generate a self-signed certificate.
 func SetTLSCertificate(certificate_pem string, private_key_pem string) {
 	C.webui_set_tls_certificate(C.CString(certificate_pem), C.CString(private_key_pem))
 }
