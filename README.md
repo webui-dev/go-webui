@@ -4,12 +4,14 @@
 
 <!-- [build-status]: https://img.shields.io/github/actions/workflow/status/webui-dev/go-webui/ci.yml?branch=main&style=for-the-badge&logo=V&labelColor=414868&logoColor=C0CAF5 -->
 
+[build-status]: https://img.shields.io/github/actions/workflow/status/webui-dev/go-webui/ci.yml?branch=main&style=for-the-badge&logo=V&labelColor=414868&logoColor=C0CAF5
 [last-commit]: https://img.shields.io/github/last-commit/webui-dev/go-webui?style=for-the-badge&logo=github&logoColor=C0CAF5&labelColor=414868
 [release-version]: https://img.shields.io/github/v/tag/webui-dev/go-webui?style=for-the-badge&logo=webtrees&logoColor=C0CAF5&labelColor=414868&color=7664C6
 [license]: https://img.shields.io/github/license/webui-dev/go-webui?style=for-the-badge&logo=opensourcehardware&label=License&logoColor=C0CAF5&labelColor=414868&color=8c73cc
 
 <!-- [![][build-status]](https://github.com/webui-dev/go-webui/actions?query=branch%3Amain) -->
 
+[![][build-status]](https://github.com/webui-dev/go-webui/actions?query=branch%3Amain)
 [![][last-commit]](https://github.com/webui-dev/go-webui/pulse)
 [![][release-version]](https://github.com/webui-dev/go-webui/releases/latest)
 [![][license]](https://github.com/webui-dev/go-webui/blob/main/LICENSE)
