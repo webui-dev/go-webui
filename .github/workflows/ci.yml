@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    paths-ignore: ['**/*.md']
+  pull_request:
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+jobs:
+  setup:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    env:
+      TEST_PROJECT: 'go-webui-project'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Setup test project
+        shell: bash
+        run: |
+          mkdir $TEST_PROJECT && cd $TEST_PROJECT
+          go mod init $TEST_PROJECT && ls -lh
+      - name: Setup WebUI library
+        if: runner.os != 'Windows'
+        run: |
+          cd $TEST_PROJECT
+          go get github.com/webui-dev/go-webui/v2@latest
+          # Test set-up using the WebScript.
+          sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
+      - name: Setup WebUI library (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd $env:TEST_PROJECT
+          go get github.com/webui-dev/go-webui/v2@latest
+          irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
+
+  build-examples:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+          - os: macos-latest
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    env:
+      TEST_PROJECT: 'go-webui-project'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Setup
+        if: runner.os != 'Windows'
+        run: sh ./setup.sh --local
+      - name: Setup (Windows)
+        if: runner.os == 'Windows'
+        run: ./setup.ps1 --local
+      - name: Setup examples
+        shell: bash
+        run: mv examples/ v2/examples/
+      - name: Build examples
+        if: runner.os != 'Windows'
+        run: |
+          cd v2/examples
+          for path in $(find * -maxdepth 0); do
+            if [[ -d "$path" ]]; then
+              cd $path
+              cmd="go build main.go"
+            elif [[ "$path" == *.go ]]; then
+              cmd="go build $path"
+            fi
+            if [[ -n $cmd ]]; then
+              echo "Building example \`$path\`"
+              eval "$cmd"
+              if [[ $? -ne 0 ]]; then
+                exit_code=1
+              fi
+            fi
+          done
+          exit $exit_code
+      - name: Build examples (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd v2/examples
+          $examplePaths = Get-ChildItem -Depth 0
+          foreach ($path in $examplePaths) {
+            if ($path.PSIsContainer) {
+              cd $path
+              $cmd="go build main.go"
+            }
+            elseif ($path -like "*.go") {
+              $cmd="go build $path"
+            }
+            if ($cmd -ne $null) {
+              Write-Output "Building example '$path'"
+              Invoke-Expression $cmd
+            }
+          }
