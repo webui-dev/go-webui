@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Download helper for WebUI wrapper users to simplify the setup with the latest
 # WebUI-C versions - Go Prototype.
@@ -61,7 +61,7 @@ esac
 # Defaults.
 output="webui"
 local=false
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
 	case "$1" in
 		-o|--output)
 			output="$2"
@@ -96,7 +96,7 @@ if [ "$local" = true ]; then
 	# TODO: add path verification for local setup
 else
 	# Verify GOPATH.
-	if [[ -z "${GOPATH}" ]]; then
+	if [ -z "${GOPATH}" ]; then
 		echo "Warning: GOPATH is not set."
 		go_path="$HOME/go"
 		echo -e "Trying to use $go_path instead.\n"
