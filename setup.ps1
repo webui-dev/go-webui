@@ -14,7 +14,7 @@
 $current_location = Get-Location
 
 $module = "github.com/webui-dev/go-webui/v2"
-$version="v2.4.1" # TODO: fetch latest version automatically and allow to set version via flag
+$webui_version="v2.4.1" # TODO: fetch latest version automatically and allow to set version via flag
 $release_base_url = "https://github.com/webui-dev/webui/releases/"
 
 # Determine the release archive for the used platform and architecture.
@@ -48,7 +48,6 @@ switch -wildcard ($platform)
 # Parse CLI arguments.
 # Defaults
 $output = "webui"
-$nightly = $true # TODO: After WebUI v2.4.0 release, remove default, to set nightly to false.
 for ($i = 0; $i -lt $args.Length; $i++)
 {
 	switch -wildcard ($args[$i])
@@ -106,11 +105,11 @@ if ($local -eq $true)
 	}
 
 	# Verify that module package is installed.
-	$module_path = Join-Path $go_path "pkg\mod\$module@$version"
+	$module_path = Join-Path $go_path "pkg\mod\$module@$webui_version"
 	if (-not (Test-Path $module_path -PathType Container))
 	{
 		Write-Host "Error: '$module_path' does not exist in GOPATH."
-		Write-Host "Make sure to run 'go get $module@$version' first."
+		Write-Host "Make sure to run 'go get $module@$webui_version' first."
 		exit 1
 	}
 
@@ -128,9 +127,11 @@ Remove-Item -Path $output -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Downloading..."
 if ($nightly -eq $true)
 {
+	$version="nightly"
 	$url = "${release_base_url}download/nightly/$archive"
 } else
 {
+	$version=$webui_version
 	$url = "${release_base_url}latest/download/$archive"
 }
 Invoke-WebRequest -Uri $url -OutFile $archive

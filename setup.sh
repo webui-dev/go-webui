@@ -13,8 +13,8 @@
 # like `@latest` or commit SHAs.
 
 module=github.com/webui-dev/go-webui/v2
-version=v2.4.1 # TODO: fetch latest version automatically and allow to set version via flag
-release_base_url="https://github.com/webui-dev/webui/releases/"
+webui_version=v2.4.1 # TODO: fetch latest version automatically and allow to set version via flag
+release_base_url="https://github.com/webui-dev/webui/releases"
 
 # Determine the release archive for the used platform and architecture.
 platform=$(uname -s)
@@ -60,7 +60,6 @@ esac
 # Parse CLI arguments.
 # Defaults.
 output="webui"
-nightly=true # TODO: After WebUI v2.4.0 release, remove default, to set nightly to false.
 local=false
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -106,10 +105,10 @@ else
 	fi
 
 	# Verify that module package is installed.
-	module_path="$go_path/pkg/mod/$module@$version"
+	module_path="$go_path/pkg/mod/$module@$webui_version"
 	if [ ! -d "$module_path" ]; then
 		echo "Error: \`$module_path\` does not exist in GOPATH."
-		echo "Make sure to run \`go get $module@$version\` first."
+		echo "Make sure to run \`go get $module@$webui_version\` first."
 		exit 1
 	fi
 
@@ -122,12 +121,14 @@ fi
 rm -rf "${output}"
 
 # Download and extract the archive.
-echo "Downloading..."
 if [ "$nightly" = true ]; then
-	url="${release_base_url}download/nightly/${archive}"
+	version="nightly"
+	url="${release_base_url}/download/nightly/${archive}"
 else
-	url="${release_base_url}latest/download/${archive}"
+	version=$webui_version
+	url="${release_base_url}/latest/download/${archive}"
 fi
+echo "Downloading WebUI@$version..."
 curl -L "$url" -o "$archive"
 echo ""
 
