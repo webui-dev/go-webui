@@ -52,14 +52,17 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/se
 irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
 ```
 
-> **Note**
+> [!NOTE]
 > Checking a script from projects you don't know yet is a good practice.
 > For this, you can check the scripts source before running it manually
 > https://github.com/webui-dev/go-webui/blob/main/setup.sh.
 >
 > ```sh
-> # E.g., download with curl before execution
+> # E.g., download the script with curl before execution
 > curl -o setup.sh https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh
+> # Review its contents
+> bat setup.vsh
+> # Run the script
 > sh setup.sh
 > ```
 
