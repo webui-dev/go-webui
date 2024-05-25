@@ -45,7 +45,9 @@ go get github.com/webui-dev/go-webui/v2/@latest
 ```sh
 # Linux & macOS
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
+```
 
+```sh
 # Windows Powershell
 irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
 ```
