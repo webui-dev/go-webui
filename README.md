@@ -71,20 +71,21 @@ _This approach can be useful for quick testing and for development and contribut
 1. Clone the repository to into a `go-webui` directory, relative to your current path
 
 ```sh
-git clone https://github.com/webui-dev/go-webui.git
+# E.g., doing a lightweight, filtered clone
+git clone --filter=blob:none https://github.com/webui-dev/go-webui.git \
+  && cd go-webui
 ```
 
-2. Setup the WebUI C library
+2. Setup the WebUI C library relative to the current path
 
 ```sh
-cd go-webui
-
-# Setup WebUI C relative to the current path
 # Linux & macOS
 ./setup.sh --local
+```
 
+```sh
 # Windows Powershell
-.\setup.ps1 --local
+./setup.ps1 --local
 ```
 
 3. Use the local go-webui module to run examples
