@@ -15,7 +15,7 @@ $current_location = Get-Location
 
 $module = "github.com/webui-dev/go-webui/v2"
 $webui_version="v2.4.1" # TODO: fetch latest version automatically and allow to set version via flag
-$release_base_url = "https://github.com/webui-dev/webui/releases/"
+$release_base_url = "https://github.com/webui-dev/webui/releases"
 
 # Determine the release archive for the used platform and architecture.
 # For this Windows script this is currently only x64.
@@ -123,17 +123,17 @@ Remove-Item -Path $archive -ErrorAction SilentlyContinue
 Remove-Item -Path $archive_dir -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $output -Recurse -Force -ErrorAction SilentlyContinue
 
-# Download and extract the archive.
-Write-Host "Downloading..."
 if ($nightly -eq $true)
 {
 	$version="nightly"
-	$url = "${release_base_url}download/nightly/$archive"
+	$url = "$release_base_url/download/nightly/$archive"
 } else
 {
 	$version=$webui_version
-	$url = "${release_base_url}latest/download/$archive"
+	$url = "$release_base_url/latest/download/$archive"
 }
+# Download and extract the archive.
+Write-Host "Downloading WebUI@$version..."
 Invoke-WebRequest -Uri $url -OutFile $archive
 
 # Move the extracted files to the output directory.

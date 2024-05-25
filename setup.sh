@@ -118,15 +118,15 @@ else
 fi
 
 # Clean old library files.
-rm -rf "${output}"
+rm -rf "$output"
 
 # Download and extract the archive.
 if [ "$nightly" = true ]; then
 	version="nightly"
-	url="${release_base_url}/download/nightly/${archive}"
+	url="$release_base_url/download/nightly/$archive"
 else
 	version=$webui_version
-	url="${release_base_url}/latest/download/${archive}"
+	url="$release_base_url/latest/download/$archive"
 fi
 echo "Downloading WebUI@$version..."
 curl -L "$url" -o "$archive"
