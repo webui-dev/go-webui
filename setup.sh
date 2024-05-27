@@ -109,10 +109,10 @@ else
 	fi
 
 	# Verify that module package is installed.
-	module_path="$go_path/pkg/mod/$module@$webui_version"
+	module_path="$go_path/pkg/mod/$module@v$webui_version"
 	if [ ! -d "$module_path" ]; then
 		echo "Error: \`$module_path\` does not exist in GOPATH."
-		echo "Make sure to run \`go get $module@$webui_version\` first."
+		echo "Make sure to run \`go get $module@v$webui_version\` first."
 		exit 1
 	fi
 

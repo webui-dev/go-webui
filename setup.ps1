@@ -110,11 +110,11 @@ if ($local -eq $true)
 	}
 
 	# Verify that module package is installed.
-	$module_path = Join-Path $go_path "pkg\mod\$module@$webui_version"
+	$module_path = Join-Path $go_path "pkg\mod\$module@v$webui_version"
 	if (-not (Test-Path $module_path -PathType Container))
 	{
 		Write-Host "Error: '$module_path' does not exist in GOPATH."
-		Write-Host "Make sure to run 'go get $module@$webui_version' first."
+		Write-Host "Make sure to run 'go get $module@v$webui_version' first."
 		exit 1
 	}
 
