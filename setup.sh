@@ -124,7 +124,6 @@ fi
 # Clean old library files.
 rm -rf "$output"
 
-# Download and extract the archive.
 if [ "$version" = "nightly" ]; then
 	url="$release_base_url/download/nightly/$archive"
 elif [ "$version" = "latest" ]; then
@@ -132,11 +131,12 @@ elif [ "$version" = "latest" ]; then
 else
 	url="$release_base_url/download/$version/$archive"
 fi
+
+# Download and extract the archive.
 echo "Downloading WebUI@$version..."
 curl -L "$url" -o "$archive"
 echo ""
 
-# Move the extracted files to the output directory.
 echo "Extracting..."
 archive_dir="${archive%.zip}"
 unzip -o "$archive"

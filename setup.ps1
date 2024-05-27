@@ -144,7 +144,6 @@ else
 Write-Host "Downloading WebUI@$version..."
 Invoke-WebRequest -Uri $url -OutFile $archive
 
-# Move the extracted files to the output directory.
 Write-Host "Extracting..."
 Expand-Archive -LiteralPath $archive
 Move-Item -Path $archive_dir\$archive_dir -Destination $output
