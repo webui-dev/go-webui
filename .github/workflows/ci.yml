@@ -30,14 +30,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           cd $TEST_PROJECT
-          go get github.com/webui-dev/go-webui/v2@latest
+          go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
           # Test set-up using the WebScript.
           sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
       - name: Setup WebUI library (Windows)
         if: runner.os == 'Windows'
         run: |
           cd $env:TEST_PROJECT
-          go get github.com/webui-dev/go-webui/v2@latest
+          go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
           irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
 
   build-examples:
