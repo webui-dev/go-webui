@@ -3,18 +3,16 @@
 #
 # Source: https://github.com/webui-dev/go-webui
 # License: MIT
-#
-# Currently the downloader works for tagged release versions.
-# Usage via web: `sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"`
-# Local execution e.g., `sh $GOPATH/pkg/mod/github.com/webui-dev/go-webui/v2@v2.4.0/setup.sh` would require
-# less logic but the idea is to eventually dynamically determine the latest version to also support versions
-# like `@latest` or commit SHAs.
 
 # Store the current location to restore it at the end of the script.
 $current_location = Get-Location
 
+# The latest known working WebUI version.
+# It must be available as tag, e.g., `https://github.com/webui-dev/webui/releases/tag/2.4.2/`
+$webui_version="2.4.2"
+
 $module = "github.com/webui-dev/go-webui/v2"
-$webui_version="v2.4.2" # TODO: fetch latest version automatically and allow to set version via flag
+
 $release_base_url = "https://github.com/webui-dev/webui/releases"
 
 # Determine the release archive for the used platform and architecture.
@@ -48,6 +46,7 @@ switch -wildcard ($platform)
 # Parse CLI arguments.
 # Defaults
 $output = "webui"
+$version = $webui_version
 for ($i = 0; $i -lt $args.Length; $i++)
 {
 	switch -wildcard ($args[$i])
@@ -60,7 +59,12 @@ for ($i = 0; $i -lt $args.Length; $i++)
 		}
 		'--nightly'
 		{
-			$nightly = $true
+			$version = "nightly"
+			break
+		}
+		'--latest'
+		{
+			$version = "latest"
 			break
 		}
 		'--local'
@@ -74,6 +78,7 @@ for ($i = 0; $i -lt $args.Length; $i++)
 			Write-Host ""
 			Write-Host "Flags:"
 			Write-Host "  -o, --output: Specify the output directory"
+			Write-Host "  --latest: Download the latest release"
 			Write-Host "  --nightly: Download the latest nightly release"
 			Write-Host "  --local: Save the output into the current directory"
 			Write-Host "  -h, --help: Display this help message"
@@ -123,14 +128,17 @@ Remove-Item -Path $archive -ErrorAction SilentlyContinue
 Remove-Item -Path $archive_dir -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $output -Recurse -Force -ErrorAction SilentlyContinue
 
-if ($nightly -eq $true)
+if ($version -eq "nightly")
 {
-	$version="nightly"
 	$url = "$release_base_url/download/nightly/$archive"
-} else
+}
+elseif ($version -eq "latest")
 {
-	$version=$webui_version
-	$url = "$release_base_url/latest/download/$archive"
+	url="$release_base_url/latest/download/$archive"
+}
+else
+{
+	$url = "$release_base_url/download/$version/$archive"
 }
 # Download and extract the archive.
 Write-Host "Downloading WebUI@$version..."

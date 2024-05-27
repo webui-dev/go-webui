@@ -5,15 +5,13 @@
 #
 # Source: https://github.com/webui-dev/go-webui
 # License: MIT
-#
-# Currently the downloader works for tagged release versions.
-# Usage via web: `sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"`
-# Local execution e.g., `sh $GOPATH/pkg/mod/github.com/webui-dev/go-webui/v2@v2.4.0/setup.sh` would require
-# less logic but the idea is to eventually dynamically determine the latest version to also support versions
-# like `@latest` or commit SHAs.
+
+# The latest known working WebUI version.
+# It must be available as tag, e.g., `https://github.com/webui-dev/webui/releases/tag/2.4.2/`
+webui_version=2.4.2
 
 module=github.com/webui-dev/go-webui/v2
-webui_version=v2.4.2 # TODO: fetch latest version automatically and allow to set version via flag
+
 release_base_url="https://github.com/webui-dev/webui/releases"
 
 # Determine the release archive for the used platform and architecture.
@@ -60,6 +58,7 @@ esac
 # Parse CLI arguments.
 # Defaults.
 output="webui"
+version=$webui_version
 local=false
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -68,7 +67,11 @@ while [ $# -gt 0 ]; do
 			shift
 			;;
 		--nightly)
-			nightly=true
+			version="nightly"
+			shift
+			;;
+		--latest)
+			version="latest"
 			shift
 			;;
 		--local)
@@ -79,6 +82,7 @@ while [ $# -gt 0 ]; do
 			echo -e "Usage: setup.sh [flags]\n"
 			echo "Flags:"
 			echo "  -o, --output: Specify the output directory"
+			echo "  --latest: Download the lastest release"
 			echo "  --nightly: Download the lastest nightly release"
 			echo "  --local: Save the output into the current directory"
 			echo "  -h, --help: Display this help message"
@@ -121,12 +125,12 @@ fi
 rm -rf "$output"
 
 # Download and extract the archive.
-if [ "$nightly" = true ]; then
-	version="nightly"
+if [ "$version" = "nightly" ]; then
 	url="$release_base_url/download/nightly/$archive"
-else
-	version=$webui_version
+elif [ "$version" = "latest" ]; then
 	url="$release_base_url/latest/download/$archive"
+else
+	url="$release_base_url/download/$version/$archive"
 fi
 echo "Downloading WebUI@$version..."
 curl -L "$url" -o "$archive"
