@@ -32,37 +32,47 @@
 
 ### As Go Module
 
-1. Download the go module
+1. Download the Go module
 
-```sh
-go get github.com/webui-dev/go-webui/v2@latest
-```
+   Release version, e.g. `v2.4.2-1.0`
+
+   ```sh
+   go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
+   ```
+
+   Or the development version
+
+   ```sh
+   go get github.com/webui-dev/go-webui/v2@main
+   ```
 
 2. Setup the WebUI C library
 
-```sh
-# Linux & macOS
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
-```
+   Linux & macOS
 
-```sh
-# Windows Powershell
-irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
-```
+   ```sh
+   sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
+   ```
 
-> [!NOTE]
-> Checking a script from projects you don't know yet is a good practice.
-> For this, you can check the scripts source before running it manually
-> https://github.com/webui-dev/go-webui/blob/main/setup.sh.
->
-> ```sh
-> # E.g., download the script with curl before execution
-> curl -o setup.sh https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh
-> # Review its contents
-> bat setup.vsh
-> # Run the script
-> sh setup.sh
-> ```
+   > **Note**
+   > Checking a script from projects you don't know yet is a good practice.
+   > For this, you can check the scripts source before running it manually
+   > https://github.com/webui-dev/go-webui/blob/main/setup.sh.
+   >
+   > ```sh
+   > # E.g., download the script with curl before execution
+   > curl -o setup.sh https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh
+   > # Review its contents
+   > bat setup.vsh
+   > # Run the script
+   > sh setup.sh
+   > ```
+
+   Windows Powershell
+
+   ```sh
+   irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
+   ```
 
 ### As git clone in a local directory
 
@@ -70,31 +80,33 @@ _This approach can be useful for quick testing and for development and contribut
 
 1. Clone the repository to into a `go-webui` directory, relative to your current path
 
-```sh
-# E.g., doing a lightweight, filtered clone
-git clone --filter=blob:none https://github.com/webui-dev/go-webui.git \
-  && cd go-webui
-```
+   ```sh
+   # E.g., doing a lightweight, filtered clone
+   git clone --filter=blob:none https://github.com/webui-dev/go-webui.git \
+     && cd go-webui
+   ```
 
 2. Setup the WebUI C library relative to the current path
 
-```sh
-# Linux & macOS
-./setup.sh --local
-```
+   Linux & macOS
 
-```sh
-# Windows Powershell
-./setup.ps1 --local
-```
+   ```sh
+   ./setup.sh --local
+   ```
+
+   Windows Powershell
+
+   ```sh
+   ./setup.ps1 --local
+   ```
 
 3. Use the local go-webui module to run examples
 
-```sh
-cp -r examples v2/
-cd v2/examples
-go run minimal.go
-```
+   ```sh
+   cp -r examples v2/
+   cd v2/examples
+   go run minimal.go
+   ```
 
 ## Usage
 
