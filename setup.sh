@@ -10,6 +10,8 @@
 # It must be available as tag, e.g., `https://github.com/webui-dev/webui/releases/tag/2.4.2/`
 webui_version=2.4.2
 
+go_webui_version=v2.4.2-1.0
+
 module=github.com/webui-dev/go-webui/v2
 
 release_base_url="https://github.com/webui-dev/webui/releases"
@@ -109,10 +111,10 @@ else
 	fi
 
 	# Verify that module package is installed.
-	module_path="$go_path/pkg/mod/$module@v$webui_version"
+	module_path="$go_path/pkg/mod/$module@$go_webui_version"
 	if [ ! -d "$module_path" ]; then
 		echo "Error: \`$module_path\` does not exist in GOPATH."
-		echo "Make sure to run \`go get $module@v$webui_version\` first."
+		echo "Make sure to run \`go get $module@$go_webui_version\` first."
 		exit 1
 	fi
 
