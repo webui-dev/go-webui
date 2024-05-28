@@ -10,6 +10,7 @@
 # It must be available as tag, e.g., `https://github.com/webui-dev/webui/releases/tag/2.4.2/`
 webui_version=2.4.2
 
+# Same tag-availability requirement as above, e.g., `https://github.com/webui-dev/go-webui/releases/tag/v2.4.2/`
 go_webui_version=v2.4.2-1.0
 
 module=github.com/webui-dev/go-webui/v2
@@ -26,7 +27,7 @@ case "$platform" in
 				archive="webui-linux-gcc-x64.zip"
 				;;
 			aarch64|arm64)
-				archive="webui-linux-gcc-aarch64.zip"
+				archive="webui-linux-gcc-arm64.zip"
 				;;
 			arm*)
 				archive="webui-linux-gcc-arm.zip"
