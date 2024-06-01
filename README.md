@@ -12,9 +12,10 @@
 [![][release-version]](https://github.com/webui-dev/go-webui/releases/latest)
 [![][license]](https://github.com/webui-dev/go-webui/blob/main/LICENSE)
 
-> WebUI is not a web-server solution or a framework, but it allows you to use any web browser as a GUI, with your preferred language in the backend and HTML5 in the frontend. All in a lightweight portable lib.
+> Use any web browser or WebView as GUI.\
+> With Go in the backend and modern web technologies in the frontend.
 
-![Screenshot](https://github.com/webui-dev/webui/assets/34311583/57992ef1-4f7f-4d60-8045-7b07df4088c6)
+![Screenshot](https://github.com/webui-dev/webui/assets/16948659/39c5b000-83eb-4779-a7ce-9769d3acf204)
 
 </div>
 
