@@ -137,7 +137,7 @@ func goWebuiEventHandler(e *C.webui_event_t) {
 	if err != nil {
 		log.Println("Failed encoding JS result into JSON", err)
 	}
-	cresponse := C.CString(response)
+	cresponse := C.CString(string(response))
 	defer C.free(unsafe.Pointer(cresponse))
 	C.webui_interface_set_response(e.window, e.event_number, cresponse)
 }
