@@ -252,14 +252,18 @@ func (w Window) SetIcon(icon string, icon_type string) {
 func Encode(str string) string {
 	cstr := C.CString(str)
 	defer C.free(unsafe.Pointer(cstr))
-	return C.GoString(C.webui_encode(cstr))
+	encoded := C.webui_encode(cstr)
+	defer C.free(unsafe.Pointer(encoded))
+	return C.GoString(encoded)
 }
 
 // Decode decodes Base64 encoded text received from the the UI.
 func Decode(str string) string {
 	cstr := C.CString(str)
 	defer C.free(unsafe.Pointer(cstr))
-	return C.GoString(C.webui_decode(cstr))
+	decoded := C.webui_decode(cstr)
+	defer C.free(unsafe.Pointer(decoded))
+	return C.GoString(decoded)
 }
 
 // SetHide determines whether the window is run in hidden mode.
@@ -413,17 +417,22 @@ func (e Event) cStruct() *C.webui_event_t {
 
 // GetSize returns the size of the first JavaScript argument.
 func (e Event) GetSize() uint {
-	return uint(C.webui_get_size(e.cStruct()))
+	cEvent := e.cStruct()
+	defer C.free(unsafe.Pointer(cEvent.element))
+	return uint(C.webui_get_size(cEvent))
 }
 
 // GetSize returns the size of the JavaScript at the specified index.
 func (e Event) GetSizeAt(idx uint) uint {
-	return uint(C.webui_get_size_at(e.cStruct(), C.size_t(idx)))
+	cEvent := e.cStruct()
+	defer C.free(unsafe.Pointer(cEvent.element))
+	return uint(C.webui_get_size_at(cEvent, C.size_t(idx)))
 }
 
 // GetArg parses the JavaScript argument into a Go data type.
 func GetArg[T any](e Event) (arg T, err error) {
 	cEvent := e.cStruct()
+	defer C.free(unsafe.Pointer(cEvent.element))
 	if uint(C.webui_get_size(cEvent)) == 0 {
 		err = &noArgError{e.Element}
 	}
@@ -447,6 +456,7 @@ func GetArg[T any](e Event) (arg T, err error) {
 // GetArgAt parses the JavaScript argument with the specified index into a Go data type.
 func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
 	cEvent := e.cStruct()
+	defer C.free(unsafe.Pointer(cEvent.element))
 	cIdx := C.size_t(idx)
 	if uint(C.webui_get_size_at(cEvent, cIdx)) == 0 {
 		err = &noArgError{e.Element}
