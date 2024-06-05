@@ -137,18 +137,24 @@ func goWebuiEventHandler(e *C.webui_event_t) {
 	if err != nil {
 		log.Println("Failed encoding JS result into JSON", err)
 	}
-	C.webui_interface_set_response(e.window, e.event_number, C.CString(string(response)))
+	cresponse := C.CString(string(response))
+	defer C.free(unsafe.Pointer(cresponse))
+	C.webui_interface_set_response(e.window, e.event_number, cresponse)
 }
 
 // Bind binds a specific html element click event with a function. Empty element means all events.
 func (w Window) Bind(element string, callback func(Event) any) {
-	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
+	celement := C.CString(element)
+	defer C.free(unsafe.Pointer(celement))
+	funcId := uint(C.go_webui_bind(C.size_t(w), celement))
 	funcList[w][funcId] = callback
 }
 
 // Bind binds a specific html element click event with a function. Empty element means all events.
 func Bind[T any](w Window, element string, callback func(Event) T) {
-	funcId := uint(C.go_webui_bind(C.size_t(w), C.CString(element)))
+	celement := C.CString(element)
+	defer C.free(unsafe.Pointer(celement))
+	funcId := uint(C.go_webui_bind(C.size_t(w), celement))
 	funcList[w][funcId] = func(e Event) any {
 		return callback(e)
 	}
@@ -156,7 +162,9 @@ func Bind[T any](w Window, element string, callback func(Event) T) {
 
 // Show opens a window using embedded HTML, or a file. If the window is already open, it will be refreshed.
 func (w Window) Show(content string) (err error) {
-	if !C.webui_show(C.size_t(w), C.CString(content)) {
+	ccontent := C.CString(content)
+	defer C.free(unsafe.Pointer(ccontent))
+	if !C.webui_show(C.size_t(w), ccontent) {
 		err = errors.New("Failed showing window.")
 	}
 	return
@@ -165,7 +173,9 @@ func (w Window) Show(content string) (err error) {
 // ShowBrowser opens a window using embedded HTML, or a file in a specific web browser.
 // If the window is already open, it will be refreshed.
 func (w Window) ShowBrowser(content string, browser Browser) (err error) {
-	if !C.webui_show_browser(C.size_t(w), C.CString(content), C.size_t(browser)) {
+	ccontent := C.CString(content)
+	defer C.free(unsafe.Pointer(ccontent))
+	if !C.webui_show_browser(C.size_t(w), ccontent, C.size_t(browser)) {
 		err = errors.New("Failed showing window.")
 	}
 	return
@@ -198,18 +208,24 @@ func Exit() {
 
 // SetRootFolder sets the web-server root folder path for the window.
 func (w Window) SetRootFolder(path string) {
-	C.webui_set_root_folder(C.size_t(w), C.CString(path))
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+	C.webui_set_root_folder(C.size_t(w), cpath)
 }
 
 // SetRootFolder sets the web-server root folder path for all windows.
 // Deprecated: use SetDefaultRootFolder instead
 func SetRootFolder(path string) {
-	C.webui_set_default_root_folder(C.CString(path))
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+	C.webui_set_default_root_folder(cpath)
 }
 
 // SetDefaultRootFolder sets the web-server root folder path for all windows.
 func SetDefaultRootFolder(path string) {
-	C.webui_set_default_root_folder(C.CString(path))
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cpath))
+	C.webui_set_default_root_folder(cpath)
 }
 
 // IsShown checks if the window it's still running.
@@ -225,17 +241,25 @@ func SetTimeout(seconds uint) {
 
 // SetIcon sets the default embedded HTML favicon.
 func (w Window) SetIcon(icon string, icon_type string) {
-	C.webui_set_icon(C.size_t(w), C.CString(icon), C.CString(icon_type))
+	cicon := C.CString(icon)
+	cicon_type := C.CString(icon_type)
+	defer C.free(unsafe.Pointer(cicon))
+	defer C.free(unsafe.Pointer(cicon_type))
+	C.webui_set_icon(C.size_t(w), cicon, cicon_type)
 }
 
 // Encode sends text based data to the UI using base64 encoding.
 func Encode(str string) string {
-	return C.GoString(C.webui_encode(C.CString(str)))
+	cstr := C.CString(str)
+	defer C.free(unsafe.Pointer(cstr))
+	return C.GoString(C.webui_encode(cstr))
 }
 
 // Decode decodes Base64 encoded text received from the the UI.
 func Decode(str string) string {
-	return C.GoString(C.webui_decode(C.CString(str)))
+	cstr := C.CString(str)
+	defer C.free(unsafe.Pointer(cstr))
+	return C.GoString(C.webui_decode(cstr))
 }
 
 // SetHide determines whether the window is run in hidden mode.
@@ -257,7 +281,11 @@ func (w Window) SetPosition(x uint, y uint) {
 // An empty `name` and `path` means the default user profile.
 // Needs to be called before `webui_show()`.
 func (w Window) SetProfile(name string, path string) {
-	C.webui_set_profile(C.size_t(w), C.CString(name), C.CString(path))
+	cname := C.CString(name)
+	cpath := C.CString(path)
+	defer C.free(unsafe.Pointer(cname))
+	defer C.free(unsafe.Pointer(cpath))
+	C.webui_set_profile(C.size_t(w), cname, cpath)
 }
 
 // GetUrl returns the full current URL
@@ -272,7 +300,9 @@ func (w Window) SetPublic(name string, status bool) {
 
 // Navigate navigates to a specific URL.
 func (w Window) Navigate(url string) {
-	C.webui_navigate(C.size_t(w), C.CString(url))
+	curl := C.CString(url)
+	defer C.free(unsafe.Pointer(curl))
+	C.webui_navigate(C.size_t(w), curl)
 }
 
 // Clean frees all memory resources. It should only be called at the end.
@@ -311,14 +341,20 @@ func (w Window) SetPort(port uint) bool {
 // both in PEM format. This works only with the `webui-2-secure` library.
 // If set to empty, WebUI will generate a self-signed certificate.
 func SetTLSCertificate(certificate_pem string, private_key_pem string) {
-	C.webui_set_tls_certificate(C.CString(certificate_pem), C.CString(private_key_pem))
+	ccertificate_pem := C.CString(certificate_pem)
+	cprivate_key_pem := C.CString(private_key_pem)
+	defer C.free(unsafe.Pointer(ccertificate_pem))
+	defer C.free(unsafe.Pointer(cprivate_key_pem))
+	C.webui_set_tls_certificate(ccertificate_pem, cprivate_key_pem)
 }
 
 // == Javascript ==============================================================
 
 // Run executres JavaScript without waiting for the response.
 func (w Window) Run(script string) {
-	C.webui_run(C.size_t(w), C.CString(script))
+	cscript := C.CString(script)
+	defer C.free(unsafe.Pointer(cscript))
+	C.webui_run(C.size_t(w), cscript)
 }
 
 // Script executes JavaScript and returns the response (Make sure the response buffer can hold the response).
@@ -338,8 +374,11 @@ func (w Window) Script(script string, options ScriptOptions) (resp string, err e
 	// Create a pointer to the local buffer
 	ptr := (*C.char)(unsafe.Pointer(&buffer[0]))
 
+	cscript := C.CString(script)
+	defer C.free(unsafe.Pointer(cscript))
+
 	// Run the script and wait for the response
-	ok := C.webui_script(C.size_t(w), C.CString(script), C.size_t(opts.Timeout), ptr, C.size_t(uint64(opts.BufferSize)))
+	ok := C.webui_script(C.size_t(w), cscript, C.size_t(opts.Timeout), ptr, C.size_t(uint64(opts.BufferSize)))
 	if !ok {
 		err = errors.New(fmt.Sprintf("Failed running script: %s.\n", script))
 	}
