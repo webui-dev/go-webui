@@ -14,9 +14,9 @@ func Close(_ webui.Event) any {
 func main() {
 	w := webui.NewWindow()
 
-	w.Bind("__close-btn", Close)
-
 	w.SetRootFolder("ui")
+
+	w.Bind("__close-btn", Close)
 
 	if err := w.ShowBrowser("index.html", webui.ChromiumBased); err != nil {
 		println("Warning: Install a Chromium-based web browser for an optimized experience.")

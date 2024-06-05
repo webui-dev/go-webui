@@ -61,6 +61,8 @@ func exit(e ui.Event) any {
 }
 
 func main() {
+	ui.SetDefaultRootFolder("ui")
+
 	w.NewWindow()
 
 	// Bind HTML elements to functions
@@ -77,6 +79,5 @@ func main() {
 	w2.NewWindow()
 	w2.Bind("exit", exit)
 
-	ui.SetRootFolder("ui")
 	ui.Wait()
 }
