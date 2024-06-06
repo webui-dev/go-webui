@@ -14,6 +14,9 @@ package webui
 #endif
 
 #include "webui/src/civetweb/civetweb.c"
+#ifdef __APPLE__
+#include "webui/src/webview/wkwebview.m"
+#endif
 #undef MG_BUF_LEN // Prevent conflict with definition `webui.c`.
 #include "webui/src/webui.c"
 #include "webui.h"
