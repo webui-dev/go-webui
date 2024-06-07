@@ -222,10 +222,10 @@ func SetRootFolder(path string) {
 }
 
 // SetDefaultRootFolder sets the web-server root folder path for all windows.
-func SetDefaultRootFolder(path string) {
+func SetDefaultRootFolder(path string) bool {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
-	C.webui_set_default_root_folder(cpath)
+	return bool(C.webui_set_default_root_folder(cpath))
 }
 
 // IsShown checks if the window it's still running.
