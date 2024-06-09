@@ -27,7 +27,6 @@
 - Fully Independent (_No need for any third-party runtimes_)
 - Lightweight ~200 Kb & Small memory footprint
 - Fast binary communication protocol between WebUI and the browser (_Instead of JSON_)
-- One header file
 - Multi-platform & Multi-Browser
 - Using private profile for safety
 
