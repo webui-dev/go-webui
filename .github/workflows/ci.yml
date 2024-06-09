@@ -18,6 +18,12 @@ jobs:
       TEST_PROJECT: 'go-webui-project'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: runner.os == 'macOS'
+        with:
+          xcode-version: latest-stable
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
@@ -31,37 +37,31 @@ jobs:
         run: |
           cd $TEST_PROJECT
           go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
-          # Test set-up using the WebScript.
-          sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
       - name: Setup WebUI library (Windows)
         if: runner.os == 'Windows'
         run: |
           cd $env:TEST_PROJECT
           go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
-          irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
 
   build-examples:
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-          - os: windows-latest
-          - os: macos-latest
+        os: [ubuntu-latest, windows-latest, macos-latest]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     env:
       TEST_PROJECT: 'go-webui-project'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: runner.os == 'macOS'
+        with:
+          xcode-version: latest-stable
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      - name: Setup
-        if: runner.os != 'Windows'
-        run: sh ./setup.sh --local
-      - name: Setup (Windows)
-        if: runner.os == 'Windows'
-        run: ./setup.ps1 --local
       - name: Setup examples
         shell: bash
         run: mv examples/ v2/examples/

@@ -1,9 +1,28 @@
-//go:build !webui_log
-
 package webui
 
 /*
-#cgo windows,amd64 LDFLAGS: -Lwebui -lwebui-2-static -lws2_32 -lole32
-#cgo linux darwin LDFLAGS: -Lwebui -lwebui-2-static -lpthread -lm
+#cgo CFLAGS: -Iwebui/include/
+#cgo CFLAGS: -Iwebui/src/civetweb/
+#cgo CFLAGS: -DNDEBUG -DNO_CACHING -DNO_CGI -DUSE_WEBSOCKET -DCGO
+// TODO: TLS condition
+#cgo CFLAGS: -DNO_SSL
+#cgo darwin CFLAGS: -x objective-c
+
+#cgo darwin LDFLAGS: -framework WebKit -framework Cocoa
+#cgo windows LDFLAGS: -lWs2_32 -lOle32
+#ifdef _MSC_VER
+	#cgo windows LDFLAGS: -lAdvapi32 -lShell32 -luser32
+#endif
+
+#include "webui/src/civetweb/civetweb.c"
+// Prevent conflict with definition in `webui.c`.
+#undef MG_BUF_LEN
+
+#ifdef __APPLE__
+	#include "webui/src/webview/wkwebview.m"
+#endif
+
+#include "webui/src/webui.c"
+#include "webui.h"
 */
 import "C"

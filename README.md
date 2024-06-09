@@ -49,34 +49,6 @@
    go get github.com/webui-dev/go-webui/v2@main
    ```
 
-2. Setup the WebUI C library
-
-   Linux & macOS
-
-   ```sh
-   sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
-   ```
-
-   > **Note**
-   > Checking a script from projects you don't know yet is a good practice.
-   > For this, you can check the scripts source before running it manually
-   > https://github.com/webui-dev/go-webui/blob/main/setup.sh.
-   >
-   > ```sh
-   > # E.g., download the script with curl before execution
-   > curl -o setup.sh https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh
-   > # Review its contents
-   > bat setup.vsh
-   > # Run the script
-   > sh setup.sh
-   > ```
-
-   Windows Powershell
-
-   ```sh
-   irm https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.ps1 | iex
-   ```
-
 ### As git clone in a local directory
 
 _This approach can be useful for quick testing and for development and contribution purposes._
@@ -89,21 +61,7 @@ _This approach can be useful for quick testing and for development and contribut
      && cd go-webui
    ```
 
-2. Setup the WebUI C library relative to the current path
-
-   Linux & macOS
-
-   ```sh
-   ./setup.sh --local
-   ```
-
-   Windows Powershell
-
-   ```sh
-   ./setup.ps1 --local
-   ```
-
-3. Use the local go-webui module to run examples
+2. Use the local go-webui module to run examples
 
    ```sh
    cp -r examples v2/

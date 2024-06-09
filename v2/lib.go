@@ -1,10 +1,10 @@
 package webui
 
 /*
-  WebUI Library 2.4.0
+  WebUI Library
   http://webui.me
   https://github.com/webui-dev/webui
-  Copyright (c) 2020-2023 Hassan Draga.
+  Copyright (c) 2020-2024 Hassan Draga.
   Licensed under MIT License.
   All rights reserved.
   Canada.
@@ -13,6 +13,7 @@ package webui
 /*
 #cgo CFLAGS: -Iwebui/include
 #include "webui.h"
+
 extern void goWebuiEventHandler(webui_event_t* e);
 static size_t go_webui_bind(size_t win, const char* element) {
 	return webui_bind(win, element, goWebuiEventHandler);

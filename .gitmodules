@@ -1,0 +1,3 @@
+[submodule "v2/webui"]
+	path = v2/webui
+	url = https://github.com/webui-dev/webui.git
