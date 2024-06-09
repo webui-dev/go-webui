@@ -296,6 +296,13 @@ func (w Window) SetProfile(name string, path string) {
 	C.webui_set_profile(C.size_t(w), cname, cpath)
 }
 
+// SetProxy sets the web browser proxyServer to use. Need to be called before `Show()`.
+func (w Window) SetProxy(name string, proxyServer string) {
+	cproxyServer := C.CString(proxyServer)
+	defer C.free(unsafe.Pointer(cproxyServer))
+	C.webui_set_proxy(C.size_t(w), cproxyServer)
+}
+
 // GetUrl returns the full current URL
 func (w Window) GetUrl() string {
 	return C.GoString(C.webui_get_url(C.size_t(w)))
