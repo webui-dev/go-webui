@@ -365,7 +365,7 @@ func SetTLSCertificate(certificate_pem string, private_key_pem string) {
 
 // == Javascript ==============================================================
 
-// Run executres JavaScript without waiting for the response.
+// Run executes JavaScript without waiting for the response.
 func (w Window) Run(script string) {
 	cscript := C.CString(script)
 	defer C.free(unsafe.Pointer(cscript))

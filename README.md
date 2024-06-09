@@ -45,7 +45,7 @@
 
    Or the development version -->
 
-   Until the next stable releas, it is recommended using the development version
+   Until the next stable releas, it is recommended to use the development version
 
    ```sh
    go get github.com/webui-dev/go-webui/v2@main
