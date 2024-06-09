@@ -37,13 +37,15 @@
 
 1. Download the Go module
 
-   Release version, e.g. `v2.4.2-1.0`
+   <!-- Release version, e.g. `v2.4.2-1.0`
 
    ```sh
    go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
    ```
 
-   Or the development version
+   Or the development version -->
+
+   Until the next stable releas, it is recommended using the development version
 
    ```sh
    go get github.com/webui-dev/go-webui/v2@main
