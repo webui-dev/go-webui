@@ -6,6 +6,7 @@ package webui
 // TODO: TLS condition
 #cgo CFLAGS: -DNO_SSL
 
+#cgo darwin CFLAGS: -x objective-c
 #cgo darwin LDFLAGS: -framework WebKit -framework Cocoa
 #cgo windows LDFLAGS: -lWs2_32 -lOle32
 
