@@ -5,20 +5,22 @@ package webui
 #cgo CFLAGS: -DNDEBUG -DNO_CACHING -DNO_CGI -DUSE_WEBSOCKET
 // TODO: TLS condition
 #cgo CFLAGS: -DNO_SSL
-
 #cgo darwin CFLAGS: -x objective-c
+
 #cgo darwin LDFLAGS: -framework WebKit -framework Cocoa
 #cgo windows LDFLAGS: -lWs2_32 -lOle32
-
 #ifdef _MSC_VER
-#cgo windows LDFLAGS: -lAdvapi32 -lShell32 -luser32
+	#cgo windows LDFLAGS: -lAdvapi32 -lShell32 -luser32
 #endif
 
 #include "webui/src/civetweb/civetweb.c"
+// Prevent conflict with definition in `webui.c`.
+#undef MG_BUF_LEN
+
 #ifdef __APPLE__
-#include "webui/src/webview/wkwebview.m"
+	#include "webui/src/webview/wkwebview.m"
 #endif
-#undef MG_BUF_LEN // Prevent conflict with definition `webui.c`.
+
 #include "webui/src/webui.c"
 #include "webui.h"
 */
