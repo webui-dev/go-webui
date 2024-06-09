@@ -57,13 +57,13 @@ _This approach can be useful for quick testing and for development and contribut
 
    ```sh
    # E.g., doing a lightweight, filtered clone
-   git clone --filter=blob:none https://github.com/webui-dev/go-webui.git \
-     && cd go-webui
+   git clone --filter=blob:none https://github.com/webui-dev/go-webui.git
    ```
 
 2. Use the local go-webui module to run examples
 
    ```sh
+   cd go-webui
    cp -r examples v2/
    cd v2/examples
    go run minimal.go
