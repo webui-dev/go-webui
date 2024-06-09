@@ -2,7 +2,8 @@ package webui
 
 /*
 #cgo CFLAGS: -Iwebui/include/
-#cgo CFLAGS: -DNDEBUG -DNO_CACHING -DNO_CGI -DUSE_WEBSOCKET
+#cgo CFLAGS: -Iwebui/src/civetweb/
+#cgo CFLAGS: -DNDEBUG -DNO_CACHING -DNO_CGI -DUSE_WEBSOCKET -DCGO
 // TODO: TLS condition
 #cgo CFLAGS: -DNO_SSL
 #cgo darwin CFLAGS: -x objective-c
