@@ -58,7 +58,8 @@ _This approach can be useful for quick testing and for development and contribut
 
    ```sh
    # E.g., doing a lightweight, filtered clone
-   git clone --filter=blob:none https://github.com/webui-dev/go-webui.git
+   git clone --recursive --shallow-submodules --filter=blob:none --also-filter-submodules \
+      https://github.com/webui-dev/go-webui.git
    ```
 
 2. Use the local go-webui module to run examples
