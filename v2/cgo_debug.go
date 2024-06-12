@@ -2,7 +2,5 @@
 
 package webui
 
-/*
-#cgo CFLAGS: -DWEBUI_LOG
-*/
+// #cgo CFLAGS: -DWEBUI_LOG
 import "C"
