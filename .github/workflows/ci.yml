@@ -62,13 +62,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      - name: Setup examples
-        shell: bash
-        run: mv examples/ v2/examples/
       - name: Build examples
         if: runner.os != 'Windows'
         run: |
-          cd v2/examples
+          cd examples
           for path in $(find * -maxdepth 0); do
             if [[ -d "$path" ]]; then
               cd $path
@@ -88,7 +85,7 @@ jobs:
       - name: Build examples (Windows)
         if: runner.os == 'Windows'
         run: |
-          cd v2/examples
+          cd examples
           $examplePaths = Get-ChildItem -Depth 0
           foreach ($path in $examplePaths) {
             if ($path.PSIsContainer) {
