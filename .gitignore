@@ -16,7 +16,7 @@
 !*/**/*.*
 
 # Examples in module directory
-v2/examples
+v2/examples/go.mod
 
 # Logs
 *.log
