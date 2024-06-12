@@ -350,19 +350,6 @@ func (w Window) SetPort(port uint) bool {
 	return bool(C.webui_set_port(C.size_t(w), C.size_t(port)))
 }
 
-// == SSL/TLS ================================================================
-
-// SetTLSCertificate sets the SSL/TLS certificate and the private key content,
-// both in PEM format. This works only with the `webui-2-secure` library.
-// If set to empty, WebUI will generate a self-signed certificate.
-func SetTLSCertificate(certificate_pem string, private_key_pem string) {
-	ccertificate_pem := C.CString(certificate_pem)
-	cprivate_key_pem := C.CString(private_key_pem)
-	defer C.free(unsafe.Pointer(ccertificate_pem))
-	defer C.free(unsafe.Pointer(cprivate_key_pem))
-	C.webui_set_tls_certificate(ccertificate_pem, cprivate_key_pem)
-}
-
 // == Javascript ==============================================================
 
 // Run executes JavaScript without waiting for the response.
