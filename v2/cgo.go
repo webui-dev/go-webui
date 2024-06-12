@@ -2,7 +2,6 @@ package webui
 
 /*
 #cgo CFLAGS: -Iwebui/include/
-#cgo CFLAGS: -Iwebui/src/civetweb/
 #cgo CFLAGS: -DNDEBUG -DNO_CACHING -DNO_CGI -DUSE_WEBSOCKET -DCGO
 // TODO: TLS condition
 #cgo CFLAGS: -DNO_SSL
@@ -11,7 +10,7 @@ package webui
 #cgo darwin LDFLAGS: -framework WebKit -framework Cocoa
 #cgo windows LDFLAGS: -lWs2_32 -lOle32
 #ifdef _MSC_VER
-	#cgo windows LDFLAGS: -lAdvapi32 -lShell32 -luser32
+	#cgo windows LDFLAGS: -lAdvapi32 -lShell32 -lUser32
 #endif
 
 #include "webui/src/civetweb/civetweb.c"
