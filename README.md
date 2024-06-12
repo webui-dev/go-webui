@@ -60,16 +60,9 @@ git clone --recursive --shallow-submodules --filter=blob:none --also-filter-subm
 
 ### Example
 
-```go
-package main
-
-import (
-	"fmt"
-
-	ui "github.com/webui-dev/go-webui/v2"
-)
-
-const html = `<!DOCTYPE html>
+```html
+<!-- index.html -->
+<!doctype html>
 <html>
    <head>
       <script src="webui.js"></script>
@@ -85,25 +78,34 @@ const html = `<!DOCTYPE html>
    </head>
    <body>
       <h1>Welcome to WebUI!</h1>
-      <br>
-      <input type="text" id="name" value="Neo">
+      <input type="text" id="name" value="Neo" />
       <button onclick="handleGoResponse();">Call Go</button>
-      <br>
-      <br>
-      <div><samp id="greeting"></samp></div>
+      <br />
+      <samp id="greeting"></samp>
       <script>
          async function handleGoResponse() {
-            const inputName = document.getElementById("name");
+            const inputName = document.getElementById('name');
             const result = await webui.greet(inputName.value);
-            document.getElementById("greeting").innerHTML = result;
+            document.getElementById('greeting').innerHTML = result;
          }
       </script>
    </body>
-</html>`
+</html>
+```
+
+```go
+// main.go
+package main
+
+import (
+	"fmt"
+
+	ui "github.com/webui-dev/go-webui/v2"
+)
 
 func greet(e ui.Event) string {
 	name, _ := ui.GetArg[string](e)
-	fmt.Println("%s has reached the backend!", name)
+	fmt.Printf("%s has reached the backend!\n", name)
 	jsResp := fmt.Sprintf("Hello %s 🐇", name)
 	return jsResp
 }
@@ -113,8 +115,8 @@ func main() {
 	w := ui.NewWindow()
 	// Bind a Go function.
 	ui.Bind(w, "greet", greet)
-	// Show html (this can be a file).
-	w.Show(html)
+	// Show frontend.
+	w.Show("index.html")
 	// Wait until all windows get close.
 	ui.Wait()
 }
