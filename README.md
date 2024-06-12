@@ -85,6 +85,7 @@ git clone --recursive --shallow-submodules --filter=blob:none --also-filter-subm
       <script>
          async function handleGoResponse() {
             const inputName = document.getElementById('name');
+            // Call a Go function.
             const result = await webui.greet(inputName.value);
             document.getElementById('greeting').innerHTML = result;
          }
@@ -117,7 +118,7 @@ func main() {
 	ui.Bind(w, "greet", greet)
 	// Show frontend.
 	w.Show("index.html")
-	// Wait until all windows get close.
+	// Wait until all windows get closed.
 	ui.Wait()
 }
 ```
