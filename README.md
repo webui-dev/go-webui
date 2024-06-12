@@ -34,42 +34,27 @@
 
 ### As Go Module
 
-1. Download the Go module
+<!-- Release version, e.g. `v2.4.2-1.0`
 
-   <!-- Release version, e.g. `v2.4.2-1.0`
+```sh
+go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
+```
 
-   ```sh
-   go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
-   ```
+Or the development version -->
 
-   Or the development version -->
+Until the next stable releas, it is recommended to use the development version
 
-   Until the next stable releas, it is recommended to use the development version
-
-   ```sh
-   go get github.com/webui-dev/go-webui/v2@main
-   ```
+```sh
+go get github.com/webui-dev/go-webui/v2@main
+```
 
 ### As git clone in a local directory
 
-_This approach can be useful for quick testing and for development and contribution purposes._
-
-1. Clone the repository to into a `go-webui` directory, relative to your current path
-
-   ```sh
-   # E.g., doing a lightweight, filtered clone
-   git clone --recursive --shallow-submodules --filter=blob:none --also-filter-submodules \
-      https://github.com/webui-dev/go-webui.git
-   ```
-
-2. Use the local go-webui module to run examples
-
-   ```sh
-   cd go-webui
-   cp -r examples v2/
-   cd v2/examples
-   go run minimal.go
-   ```
+```sh
+# E.g., doing a lightweight, filtered clone
+git clone --recursive --shallow-submodules --filter=blob:none --also-filter-submodules \
+  https://github.com/webui-dev/go-webui.git
+```
 
 ## Usage
 
