@@ -26,7 +26,7 @@ func SetTLSCertificate(certificate_pem string, private_key_pem string) (err erro
 	defer C.free(unsafe.Pointer(ccertificate_pem))
 	defer C.free(unsafe.Pointer(cprivate_key_pem))
 	if !C.webui_set_tls_certificate(ccertificate_pem, cprivate_key_pem) {
-		err = errors.New("error: failed to set tls certificate")
+		err = errors.New("error: failed to set TLS certificate")
 	}
 	return
 }
