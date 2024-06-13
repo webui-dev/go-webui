@@ -136,7 +136,7 @@ func goWebuiEventHandler(e *C.webui_event_t) {
 	}
 	response, err := json.Marshal(result)
 	if err != nil {
-		log.Println("Failed encoding JS result into JSON", err)
+		log.Println("error: failed to encode JS result into JSON", err)
 	}
 	cresponse := C.CString(string(response))
 	defer C.free(unsafe.Pointer(cresponse))
@@ -166,7 +166,7 @@ func (w Window) Show(content string) (err error) {
 	ccontent := C.CString(content)
 	defer C.free(unsafe.Pointer(ccontent))
 	if !C.webui_show(C.size_t(w), ccontent) {
-		err = errors.New("Failed showing window.")
+		err = errors.New("error: failed to show window")
 	}
 	return
 }
@@ -177,7 +177,7 @@ func (w Window) ShowBrowser(content string, browser Browser) (err error) {
 	ccontent := C.CString(content)
 	defer C.free(unsafe.Pointer(ccontent))
 	if !C.webui_show_browser(C.size_t(w), ccontent, C.size_t(browser)) {
-		err = errors.New("Failed showing window.")
+		err = errors.New("error: failed to show window")
 	}
 	return
 }
@@ -227,7 +227,7 @@ func SetDefaultRootFolder(path string) (err error) {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
 	if !C.webui_set_default_root_folder(cpath) {
-		err = errors.New("Failed setting the default root folder.")
+		err = errors.New("error: failed to set the default root folder")
 	}
 	return
 }
@@ -382,7 +382,7 @@ func (w Window) Script(script string, options ScriptOptions) (resp string, err e
 	// Run the script and wait for the response
 	ok := C.webui_script(C.size_t(w), cscript, C.size_t(opts.Timeout), ptr, C.size_t(uint64(opts.BufferSize)))
 	if !ok {
-		err = fmt.Errorf("Failed running script: %s.\n", script)
+		err = fmt.Errorf("error: failed to run script: %s.\n", script)
 	}
 	respLen := bytes.IndexByte(buffer[:], 0)
 	resp = string(buffer[:respLen])
@@ -400,7 +400,7 @@ func (e *noArgError) Error() string {
 }
 
 func (e *getArgError) Error() string {
-	return fmt.Sprintf("Failed getting argument of type `%s` for `%s`. %v", e.typ, e.element, e.err)
+	return fmt.Sprintf("error: failed to get argument of type `%s` for `%s`: %v", e.typ, e.element, e.err)
 }
 
 func (e Event) cStruct() *C.webui_event_t {
