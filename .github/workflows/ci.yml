@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  setup:
+  build-go-mod-project:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -16,32 +16,36 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       TEST_PROJECT: 'go-webui-project'
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+          path: go-webui
       - uses: maxim-lobanov/setup-xcode@v1
         if: runner.os == 'macOS'
         with:
           xcode-version: latest-stable
       - uses: actions/setup-go@v5
+        if: runner.os == 'macOS'
         with:
           go-version: '1.21'
       - name: Setup test project
-        shell: bash
         run: |
           mkdir $TEST_PROJECT && cd $TEST_PROJECT
           go mod init $TEST_PROJECT && ls -lh
+          cp ../go-webui/examples/call_go_from_js.go ./main.go
       - name: Setup WebUI library
-        if: runner.os != 'Windows'
         run: |
           cd $TEST_PROJECT
-          go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
-      - name: Setup WebUI library (Windows)
-        if: runner.os == 'Windows'
+          sh ../go-webui/setup.sh
+          sh ../go-webui/setup.sh # TODO: investigate why a second execution is required here.
+      - name: Build
         run: |
-          cd $env:TEST_PROJECT
-          go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
+          cd $TEST_PROJECT
+          go build main.go
 
   build-examples:
     strategy:
