@@ -32,29 +32,57 @@
 
 ## Installation
 
-### As Go Module
+> [!NOTE]
+> Until the next stable release it is recommended to use go-webui's latest development version.
 
-<!-- Release version, e.g. `v2.4.2-1.0`
+- ### As Go module
 
-```sh
-go get github.com/webui-dev/go-webui/v2@v2.4.2-1.0
-```
+  The easiest way to setup go-webui as a Go module is to use the `setup.sh` script.
+  
+  It will run `go get` to retrieve the go-webui module and bootstrap the version of the WebUI C library that it is using.
+  
+  - Release version
+  
+  ```sh
+  # Available soon.
+  # sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/v2.5.1-beta-1.0/setup.sh)"
+  ```
+  
+  - Development version
+  
+  ```sh
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
+  ```
 
-Or the development version -->
+- ### As submodule
 
-Until the next stable releas, it is recommended to use the development version
+  For using go-webui as a module relative to you go project.
+  The example below sets it up in a `modules` sub directory.
+  
+  ```sh
+  git submodule add https://github.com/webui-dev/go-webui.git modules/go-webui
+  ```
+  
+  ```sh
+  git submodule update --init --filter=blob:none --recursive
+  ```
+  
+  `replace` the path accordingly in the `g.mod` file.
+  
+  ```
+  require github.com/webui-dev/go-webui/v2 v2.4.3
+  
+  replace github.com/webui-dev/go-webui/v2 v2.4.3 => ./modules/go-webui
+  ```
 
-```sh
-go get github.com/webui-dev/go-webui/v2@main
-```
+- ### As git clone - for development and contribution purposes
 
-### As git clone in a local directory
-
-```sh
-# E.g., doing a lightweight, filtered clone
-git clone --recursive --shallow-submodules --filter=blob:none --also-filter-submodules \
-  https://github.com/webui-dev/go-webui.git
-```
+  The command below retrieves go-webui as a lightweight, filtered clone.
+  
+  ```sh
+  git clone --recursive --shallow-submodules --filter=blob:none --also-filter-submodules \
+    https://github.com/webui-dev/go-webui.git
+  ```
 
 ## Usage
 
