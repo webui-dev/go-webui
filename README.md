@@ -153,15 +153,23 @@ func main() {
 
 Find more examples in the [`examples/`](https://github.com/webui-dev/go-webui/tree/main/examples) directory.
 
+## Documentation
+
+### Enable TLS/SSL
+
+Enable WebUI's security layer by adding the `webui_tls` build tag.
+
+```sh
+go run -tags webui_tls <path>
+```
+
 ### Debugging
 
-To use WebUI's debug build in your Go-WebUI application, add the `webui_log` build tag. E.g.:
+To use WebUI's debug build, add the `webui_log` build tag. E.g.:
 
 ```sh
 go run -tags webui_log minimal.go
 ```
-
-## Documentation
 
 - [Online Documentation](https://webui.me/docs/#/go) (WIP)
 
