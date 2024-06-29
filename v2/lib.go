@@ -297,7 +297,7 @@ func (w Window) SetProfile(name string, path string) {
 }
 
 // SetProxy sets the web browser proxyServer to use. Need to be called before `Show()`.
-func (w Window) SetProxy(name string, proxyServer string) {
+func (w Window) SetProxy(proxyServer string) {
 	cproxyServer := C.CString(proxyServer)
 	defer C.free(unsafe.Pointer(cproxyServer))
 	C.webui_set_proxy(C.size_t(w), cproxyServer)
@@ -309,7 +309,7 @@ func (w Window) GetUrl() string {
 }
 
 // SetPublic allows a specific window address to be accessible from a public network.
-func (w Window) SetPublic(name string, status bool) {
+func (w Window) SetPublic(status bool) {
 	C.webui_set_public(C.size_t(w), C._Bool(status))
 }
 
