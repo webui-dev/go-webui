@@ -1,6 +1,8 @@
 <div align="center">
 
-# WebUI Go
+![Logo](https://raw.githubusercontent.com/webui-dev/webui-logo/main/webui_go.png)
+
+# Go-WebUI
 
 #### [Features](#features) · [Installation](#installation) · [Usage](#usage) · [Documentation](#documentation) · [WebUI](https://github.com/webui-dev/webui)
 
@@ -17,7 +19,7 @@
 > Use any web browser or WebView as GUI.\
 > With Go in the backend and modern web technologies in the frontend.
 
-![Screenshot](https://github.com/webui-dev/webui/assets/16948659/39c5b000-83eb-4779-a7ce-9769d3acf204)
+![Screenshot](https://raw.githubusercontent.com/webui-dev/webui-logo/main/screenshot.png)
 
 </div>
 
