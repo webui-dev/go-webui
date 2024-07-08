@@ -45,7 +45,7 @@ og_perms=$(stat -c "%a" "$go_webui_path")
 chmod +w "$go_webui_path"
 
 # Linking allows using WebUI C even in cases of multiple go-webui versions without creating bloat.
-ln -s $webui_path $go_webui_path/webui
+ln -s "$webui_path" "$go_webui_path/webui"
 
 # Restore original permissions.
 chmod "$og_perms" "$go_webui_path"
