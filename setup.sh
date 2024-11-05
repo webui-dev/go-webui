@@ -12,7 +12,7 @@ go get github.com/webui-dev/go-webui/v2@main
 go get github.com/webui-dev/webui@main > /dev/null 2>&1
 
 if [ -z "$GOPATH" ]; then
-	go_path=$HOME/go
+	go_path=$(go env GOPATH)
 else
 	go_path=$GOPATH
 fi
