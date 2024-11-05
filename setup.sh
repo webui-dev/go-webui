@@ -11,11 +11,7 @@ go mod tidy
 go get github.com/webui-dev/go-webui/v2@main
 go get github.com/webui-dev/webui@main > /dev/null 2>&1
 
-if [ -z "$GOPATH" ]; then
-	go_path=$(go env GOPATH)
-else
-	go_path=$GOPATH
-fi
+go_path="${GOPATH:-$(go env GOPATH)}"
 
 go_webui_full_version=$(grep "github.com/webui-dev/go-webui/v2" go.sum | awk '{print $2}' | head -n 1)
 webui_full_version=$(grep "github.com/webui-dev/webui" go.sum | awk '{print $2}' | head -n 1)
