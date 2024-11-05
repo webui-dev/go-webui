@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Ensure the current directory is part of a go module.
 if [ ! -f "go.mod" ]; then
 	echo "error: failed to find go.mod file in current directory."
