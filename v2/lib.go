@@ -345,7 +345,13 @@ func (w Window) GetChildProcessID() uint64 {
 	return uint64(C.webui_get_child_process_id(C.size_t(w)))
 }
 
-// SetPort sets a custom web-server network port to be used by WebUI.
+// GetPort returns the network port of the running window.
+func (w Window) GetPort() int {
+	return int(C.webui_get_port(C.size_t(w)))
+}
+
+// SetPort sets a custom web-server network port to be used by WebUI. Returns
+// true if the port is free and usable by WebUI.
 func (w Window) SetPort(port uint) bool {
 	return bool(C.webui_set_port(C.size_t(w), C.size_t(port)))
 }
