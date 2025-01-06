@@ -345,9 +345,17 @@ func (w Window) GetChildProcessID() uint64 {
 	return uint64(C.webui_get_child_process_id(C.size_t(w)))
 }
 
-// GetPort returns the network port of the running window.
-func (w Window) GetPort() int {
-	return int(C.webui_get_port(C.size_t(w)))
+// GetPort returns the network port of the running window. If the window isn't
+// running, an error is returned.
+func (w Window) GetPort() (int, error) {
+	if !w.IsShown() {
+		return 0, errors.New("error: window is not running")
+	}
+	port := int(C.webui_get_port(C.size_t(w)))
+	if port == 0 {
+		return 0, errors.New("error: failed to get port")
+	}
+	return port, nil
 }
 
 // SetPort sets a custom web-server network port to be used by WebUI. Returns
