@@ -2,7 +2,7 @@
 
 ![Logo](https://raw.githubusercontent.com/webui-dev/webui-logo/main/webui_go.png)
 
-# Go-WebUI
+# Go-WebUI v2.5.0
 
 #### [Features](#features) · [Installation](#installation) · [Usage](#usage) · [Documentation](#documentation) · [WebUI](https://github.com/webui-dev/webui)
 
@@ -26,11 +26,12 @@
 ## Features
 
 - Parent library written in pure C
-- Fully Independent (_No need for any third-party runtimes_)
-- Lightweight ~200 Kb & Small memory footprint
-- Fast binary communication protocol between WebUI and the browser (_Instead of JSON_)
+- Portable (*Needs only a web browser or a WebView at runtime*)
+- Lightweight (*Few Kb library*) & Small memory footprint
+- Fast binary communication protocol
 - Multi-platform & Multi-Browser
 - Using private profile for safety
+- Cross-platform WebView
 
 ## Installation
 
@@ -39,18 +40,17 @@
 
 - ### As Go module
 
-  The easiest way to setup go-webui as a Go module is to use the `setup.sh` script.
+  The easiest way to setup go-webui as a Go module is to use the `setup.sh` or `setup.bat` script.
 
   It will run `go get` to retrieve the go-webui module and bootstrap the version of the WebUI C library that it is using.
 
-  - Release version
+  - Windows
 
   ```sh
-  # Available soon.
-  # sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/v2.5.1-beta-1.0/setup.sh)"
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.bat)"
   ```
 
-  - Development version
+  - Linux / macOS
 
   ```sh
   sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
@@ -81,9 +81,9 @@
   `replace` the path accordingly in the `g.mod` file.
 
   ```
-  require github.com/webui-dev/go-webui/v2 v2.4.3
+  require github.com/webui-dev/go-webui/v2 v2.5.0
 
-  replace github.com/webui-dev/go-webui/v2 v2.4.3 => ./modules/go-webui
+  replace github.com/webui-dev/go-webui/v2 v2.5.0 => ./modules/go-webui
   ```
 
 - ### As git clone - for development and contribution purposes
@@ -105,28 +105,14 @@
 <html>
    <head>
       <script src="webui.js"></script>
-      <style>
-         body {
-            background: linear-gradient(to left, #36265a, #654da9);
-            color: AliceBlue;
-            font: 16px sans-serif;
-            text-align: center;
-            margin-top: 30px;
-         }
-      </style>
    </head>
    <body>
-      <h1>Welcome to WebUI!</h1>
-      <input type="text" id="name" value="Neo" />
-      <button onclick="handleGoResponse();">Call Go</button>
-      <br />
-      <samp id="greeting"></samp>
+      <button onclick="test();">Test Go-WebUI</button>
       <script>
-         async function handleGoResponse() {
-            const inputName = document.getElementById('name');
+         async function test() {
             // Call a Go function.
-            const result = await webui.greet(inputName.value);
-            document.getElementById('greeting').innerHTML = result;
+            const result = await myGoFunction('Hello From JavaScript');
+            alert(result); // "Hello From Go"
          }
       </script>
    </body>
@@ -143,18 +129,20 @@ import (
 	ui "github.com/webui-dev/go-webui/v2"
 )
 
-func greet(e ui.Event) string {
+func myGoFunction(e ui.Event) string {
+   // Get first argument
 	name, _ := ui.GetArg[string](e)
-	fmt.Printf("%s has reached the backend!\n", name)
-	jsResp := fmt.Sprintf("Hello %s 🐇", name)
-	return jsResp
+	fmt.Printf("JavaScript sent: %s\n", name) // Hello From JavaScript
+   // Return a response to JavaScript
+	response := fmt.Sprintf("Hello From Go")
+	return response
 }
 
 func main() {
 	// Create a window.
 	w := ui.NewWindow()
 	// Bind a Go function.
-	ui.Bind(w, "greet", greet)
+	ui.Bind(w, "myGoFunction", myGoFunction)
 	// Show frontend.
 	w.Show("index.html")
 	// Wait until all windows get closed.
@@ -224,16 +212,27 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 
 ## Wrappers
 
-| Language                | Status         | Link                                                      |
-| ----------------------- | -------------- | --------------------------------------------------------- |
-| Go                      | ✔️             | [Go-WebUI](https://github.com/webui-dev/go-webui)         |
-| Nim                     | ✔️             | [Nim-WebUI](https://github.com/webui-dev/nim-webui)       |
-| Pascal                  | ✔️             | [Pascal-WebUI](https://github.com/webui-dev/pascal-webui) |
-| Python                  | ✔️             | [Python-WebUI](https://github.com/webui-dev/python-webui) |
-| Rust                    | _not complete_ | [Rust-WebUI](https://github.com/webui-dev/rust-webui)     |
-| TypeScript / JavaScript | ✔️             | [Deno-WebUI](https://github.com/webui-dev/deno-webui)     |
-| V                       | ✔️             | [V-WebUI](https://github.com/webui-dev/v-webui)           |
-| Zig                     | _not complete_ | [Zig-WebUI](https://github.com/webui-dev/zig-webui)       |
+| Language        | v2.4.0 API | v2.5.0 API | Link                                                    |
+| --------------- | --- | -------------- | ---------------------------------------------------------  |
+| Python          | ✔️ | _not complete_ | [Python-WebUI](https://github.com/webui-dev/python-webui)  |
+| Go              | ✔️ | _not complete_ | [Go-WebUI](https://github.com/webui-dev/go-webui)          |
+| Zig             | ✔️ |  _not complete_ | [Zig-WebUI](https://github.com/webui-dev/zig-webui)        |
+| Nim             | ✔️ |  _not complete_ | [Nim-WebUI](https://github.com/webui-dev/nim-webui)        |
+| V               | ✔️ |  _not complete_ | [V-WebUI](https://github.com/webui-dev/v-webui)            |
+| Rust            | _not complete_ |  _not complete_ | [Rust-WebUI](https://github.com/webui-dev/rust-webui)      |
+| TS / JS (Deno)  | ✔️ |  _not complete_ | [Deno-WebUI](https://github.com/webui-dev/deno-webui)      |
+| TS / JS (Bun)   | _not complete_ |  _not complete_ | [Bun-WebUI](https://github.com/webui-dev/bun-webui)        |
+| Swift           | _not complete_ |  _not complete_ | [Swift-WebUI](https://github.com/webui-dev/swift-webui)    |
+| Odin            | _not complete_ |  _not complete_ | [Odin-WebUI](https://github.com/webui-dev/odin-webui)      |
+| Pascal          | _not complete_ |  _not complete_ | [Pascal-WebUI](https://github.com/webui-dev/pascal-webui)  |
+| Purebasic       | _not complete_ |  _not complete_ | [Purebasic-WebUI](https://github.com/webui-dev/purebasic-webui)|
+| - |  |  |
+| Common Lisp     | _not complete_ |  _not complete_ | [cl-webui](https://github.com/garlic0x1/cl-webui)          |
+| Delphi          | _not complete_ |  _not complete_ | [WebUI4Delphi](https://github.com/salvadordf/WebUI4Delphi) |
+| C#              | _not complete_ |  _not complete_ | [WebUI4CSharp](https://github.com/salvadordf/WebUI4CSharp) |
+| WebUI.NET       | _not complete_ |  _not complete_ | [WebUI.NET](https://github.com/Juff-Ma/WebUI.NET)          |
+| QuickJS         | _not complete_ |  _not complete_ | [QuickUI](https://github.com/xland/QuickUI)                |
+| PHP             | _not complete_ |  _not complete_ | [PHPWebUiComposer](https://github.com/KingBes/php-webui-composer) |
 
 ## Supported Web Browsers
 
@@ -249,6 +248,14 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 | Epic            | ✔️              | ✔️            | _not available_ |
 | Apple Safari    | _not available_ | _coming soon_ | _not available_ |
 | Opera           | _coming soon_   | _coming soon_ | _coming soon_   |
+
+## Supported WebView
+
+| WebView         | Status         |
+| --------------- | --------------- |
+| Windows WebView2 | ✔️ |
+| Linux GTK WebView   | ✔️ |
+| macOS WKWebView  | ✔️ |
 
 ### License
 
