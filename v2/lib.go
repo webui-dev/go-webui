@@ -486,3 +486,99 @@ func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
 	arg = ret
 	return
 }
+
+// GetBestBrowser returns the recommended web browser ID to use.
+// If you are already using one, this function will return the same ID.
+func (w Window) GetBestBrowser() Browser {
+	return Browser(C.webui_get_best_browser(C.size_t(w)))
+}
+
+// BrowserExists checks if a web browser is installed.
+func BrowserExists(browser Browser) bool {
+	return bool(C.webui_browser_exist(C.size_t(browser)))
+}
+
+// StartServer starts only the web server and returns the URL.
+// No window will be shown.
+func (w Window) StartServer(content string) string {
+	ccontent := C.CString(content)
+	defer C.free(unsafe.Pointer(ccontent))
+	return C.GoString(C.webui_start_server(C.size_t(w), ccontent))
+}
+
+// GetFreePort returns an available usable free network port.
+func GetFreePort() uint {
+	return uint(C.webui_get_free_port())
+}
+
+// ShowWebView shows a WebView window using embedded HTML or a file.
+// If the window is already open, it will be refreshed.
+// Note: Windows requires WebView2Loader.dll
+func (w Window) ShowWebView(content string) (err error) {
+	ccontent := C.CString(content)
+	defer C.free(unsafe.Pointer(ccontent))
+	if !C.webui_show_wv(C.size_t(w), ccontent) {
+		err = errors.New("error: failed to show WebView window")
+	}
+	return
+}
+
+// SetMinimumSize sets the window minimum size.
+func (w Window) SetMinimumSize(width, height uint) {
+	C.webui_set_minimum_size(C.size_t(w), C.uint(width), C.uint(height))
+}
+
+// SetHighContrast sets the window with high-contrast support.
+// Useful when you want to build a better high-contrast theme with CSS.
+func (w Window) SetHighContrast(status bool) {
+	C.webui_set_high_contrast(C.size_t(w), C._Bool(status))
+}
+
+// IsHighContrast returns whether the OS is using high contrast theme.
+func IsHighContrast() bool {
+	return bool(C.webui_is_high_contrast())
+}
+
+// SetCustomParameters adds user-defined web browser's CLI parameters.
+func (w Window) SetCustomParameters(params string) {
+	cparams := C.CString(params)
+	defer C.free(unsafe.Pointer(cparams))
+	C.webui_set_custom_parameters(C.size_t(w), cparams)
+}
+
+// GetMimeType returns the HTTP mime type of a file.
+func GetMimeType(filename string) string {
+	cfilename := C.CString(filename)
+	defer C.free(unsafe.Pointer(cfilename))
+	return C.GoString(C.webui_get_mime_type(cfilename))
+}
+
+// OpenURL opens a URL in the native default web browser.
+func OpenURL(url string) {
+	curl := C.CString(url)
+	defer C.free(unsafe.Pointer(curl))
+	C.webui_open_url(curl)
+}
+
+// SetTLSCertificate sets the SSL/TLS certificate and the private key content,
+// both in PEM format. This works only with `webui-2-secure` library.
+// If set empty, WebUI will generate a self-signed certificate.
+func SetTLSCertificate(certificatePEM, privateKeyPEM string) bool {
+	ccert := C.CString(certificatePEM)
+	ckey := C.CString(privateKeyPEM)
+	defer C.free(unsafe.Pointer(ccert))
+	defer C.free(unsafe.Pointer(ckey))
+	return bool(C.webui_set_tls_certificate(ccert, ckey))
+}
+
+// Malloc safely allocates memory using the WebUI memory management system.
+func Malloc(size uint) unsafe.Pointer {
+	return C.webui_malloc(C.size_t(size))
+}
+
+// SendRaw safely sends raw data to the UI. All clients.
+func (w Window) SendRaw(function string, raw []byte) {
+	cfunc := C.CString(function)
+	defer C.free(unsafe.Pointer(cfunc))
+	C.webui_send_raw(C.size_t(w), cfunc, unsafe.Pointer(&raw[0]), C.size_t(len(raw)))
+}
