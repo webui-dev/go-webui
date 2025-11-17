@@ -2,7 +2,7 @@
 
 ![Logo](https://raw.githubusercontent.com/webui-dev/webui-logo/main/webui_go.png)
 
-# Go-WebUI v2.5.0
+# Go-WebUI v2.5.1
 
 #### [Features](#features) · [Installation](#installation) · [Usage](#usage) · [Documentation](#documentation) · [WebUI](https://github.com/webui-dev/webui)
 
@@ -81,9 +81,9 @@
   `replace` the path accordingly in the `g.mod` file.
 
   ```
-  require github.com/webui-dev/go-webui/v2 v2.5.0
+  require github.com/webui-dev/go-webui/v2 v2.5.1
 
-  replace github.com/webui-dev/go-webui/v2 v2.5.0 => ./modules/go-webui
+  replace github.com/webui-dev/go-webui/v2 v2.5.1 => ./modules/go-webui
   ```
 
 - ### As git clone - for development and contribution purposes
@@ -212,7 +212,7 @@ Think of WebUI like a WebView controller, but instead of embedding the WebView c
 
 ## Wrappers
 
-| Language        | v2.4.0 API | v2.5.0 API | Link                                                    |
+| Language        | v2.4.x API | v2.5.x API | Link                                                    |
 | --------------- | --- | -------------- | ---------------------------------------------------------  |
 | Python          | ✔️ | _not complete_ | [Python-WebUI](https://github.com/webui-dev/python-webui)  |
 | Go              | ✔️ | _not complete_ | [Go-WebUI](https://github.com/webui-dev/go-webui)          |
