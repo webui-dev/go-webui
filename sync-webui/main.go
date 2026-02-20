@@ -51,7 +51,7 @@ func main() {
 	iferrExit(validatePaths(goWebuiPath, webuiPath))
 	linkName := filepath.Join(goWebuiPath, "webui")
 	// Exit if link already exists in the directory of the used go-webui version.
-	if !dirExists(linkName) {
+	if dirExists(linkName) {
 		return
 	}
 
