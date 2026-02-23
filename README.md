@@ -40,9 +40,16 @@
 
 - ### As Go module
 
-  The easiest way to setup go-webui as a Go module is to use the `setup.sh` or `setup.bat` script.
+  > [!NOTE]
+  > Always verify what will be run before using either of these methods.
 
-  It will run `go get` to retrieve the go-webui module and bootstrap the version of the WebUI C library that it is using.
+  Run this command to get the latest `go-webui` module version, and to sync the WebUI C library that it is using.
+
+  ```sh
+  go run github.com/webui-dev/go-webui/v2/sync-webui@main
+  ```
+
+  Alternatively, use the `setup.sh` or `setup.bat` script to do the same thing.
 
   - Windows
 
