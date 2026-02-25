@@ -40,8 +40,8 @@
 
 - ### As Go module
 
-  > [!NOTE]
-  > Always verify what will be run before using either of these methods.
+> [!NOTE]
+> Always verify what will be run before using either of these methods.
 
   Run this command to get the latest `go-webui` module version, and to sync the WebUI C library that it is using.
 
