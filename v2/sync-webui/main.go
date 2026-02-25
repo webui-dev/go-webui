@@ -50,27 +50,42 @@ func main() {
 	// Validate that these paths actually exist
 	iferrExit(validatePaths(goWebuiPath, webuiPath))
 	linkName := filepath.Join(goWebuiPath, "webui")
-	// Exit if link already exists in the directory of the used go-webui version.
+	// Remove the link if it already exists in the directory of the used go-webui version.
 	if dirExists(linkName) {
-		return
+		iferrExit(tempPerms(goWebuiPath, 0733, func() error {
+			return os.Remove(linkName)
+		}))
 	}
 
 	// Store original permissions.
 	// Not strictly necessary, yet we ensure end without changes to the original permissions.
-	ogPerms, err := getPerms(goWebuiPath)
-	iferrExit(err)
-	iferrExit(os.Chmod(goWebuiPath, 0200+ogPerms))
-	// Linking allows using WebUI C even in cases of multiple go-webui versions without creating bloat.
-	if err := os.Symlink(webuiPath, linkName); err != nil {
-		if runtime.GOOS == "windows" {
-			// (Requires Administrator privileges or Developer Mode)
-			errExit("mklink failed. Run as Administrator if needed.")
+	iferrExit(tempPerms(goWebuiPath, 0733, func() error {
+		// Linking allows using WebUI C even in cases of multiple go-webui versions without creating bloat.
+		if err := os.Symlink(webuiPath, linkName); err != nil {
+			if runtime.GOOS == "windows" {
+				// (Requires Administrator privileges or Developer Mode)
+				return fmt.Errorf("%w: mklink failed, Run as Administrator if needed", err)
+			}
+			return err
 		}
-		errExit(err.Error())
-	}
-	// Restore original permissions.
-	iferrExit(os.Chmod(goWebuiPath, ogPerms))
+		return nil
+	}))
 	iferrExit(goTools.Cmd("mod", "tidy").Run())
+}
+
+func tempPerms(path string, newPerms os.FileMode, fn func() error) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("failed to stat file '%s': %w", path, err)
+	}
+	curPerms := fi.Mode()
+	if err := os.Chmod(path, newPerms); err != nil {
+		return fmt.Errorf("failed to set temp perms for file '%s': %w", path, err)
+	}
+	defer func() {
+		_ = os.Chmod(path, curPerms)
+	}()
+	return fn()
 }
 
 func validatePaths(goWebuiPath, webuiPath string) error {
