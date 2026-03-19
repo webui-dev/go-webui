@@ -19,6 +19,7 @@ extern void goWebuiEventHandler(webui_event_t* e);
 extern void* goWebuiFileHandler(char* filename, int* length);
 extern void* goWebuiFileHandlerWindow(size_t window, char* filename, int* length);
 extern void goWebuiLoggerHandler(size_t level, char* message, void* user_data);
+extern bool goWebuiCloseHandlerWv(size_t window);
 
 // Wrapper functions to handle const casting
 static const void* goWebuiFileHandlerWrapper(const char* filename, int* length) {
@@ -47,6 +48,14 @@ static void go_webui_set_file_handler_window(size_t win) {
 
 static void go_webui_set_logger(void* user_data) {
 	webui_set_logger(goWebuiLoggerHandlerWrapper, user_data);
+}
+
+static bool goWebuiCloseHandlerWvWrapper(size_t window) {
+	return goWebuiCloseHandlerWv(window);
+}
+
+static void go_webui_set_close_handler_wv(size_t win) {
+	webui_set_close_handler_wv(win, goWebuiCloseHandlerWvWrapper);
 }
 */
 import "C"
@@ -79,6 +88,7 @@ const (
 	Epic
 	Yandex
 	ChromiumBased
+	Webview
 )
 
 type Runtime uint8
@@ -141,11 +151,14 @@ const (
 )
 
 type Event struct {
-	Window      Window
-	EventType   EventType
-	Element     string
-	eventNumber uint
-	bindId      uint
+	Window       Window
+	EventType    EventType
+	Element      string
+	eventNumber  uint
+	bindId       uint
+	ClientId     uint
+	ConnectionId uint
+	Cookies      string
 }
 
 type ScriptOptions struct {
@@ -171,6 +184,9 @@ var funcList = make(map[Window]map[uint]func(Event) any)
 // User Go File Handler Functions
 var fileHandlerList = make(map[Window]FileHandler)
 var fileHandlerWindowList = make(map[Window]FileHandlerWindow)
+
+// User Go Close Handler Functions (WebView)
+var closeHandlerList = make(map[Window]func(Window) bool)
 
 // User Go Logger Function
 var loggerFunc LoggerFunc
@@ -202,11 +218,14 @@ func NewWindowId() Window {
 func goWebuiEventHandler(e *C.webui_event_t) {
 	// Create Go event from C event.
 	goEvent := Event{
-		Window:      Window(e.window),
-		EventType:   EventType(e.event_type),
-		Element:     C.GoString(e.element),
-		eventNumber: uint(e.event_number),
-		bindId:      uint(e.bind_id),
+		Window:       Window(e.window),
+		EventType:    EventType(e.event_type),
+		Element:      C.GoString(e.element),
+		eventNumber:  uint(e.event_number),
+		bindId:       uint(e.bind_id),
+		ClientId:     uint(e.client_id),
+		ConnectionId: uint(e.connection_id),
+		Cookies:      C.GoString(e.cookies),
 	}
 	// Call user callback function.
 	result := funcList[goEvent.Window][goEvent.bindId](goEvent)
@@ -308,6 +327,18 @@ func goWebuiFileHandlerWindow(window C.size_t, filename *C.char, length *C.int) 
 	C.webui_interface_set_response_file_handler(C.size_t(window), webuiBuffer, C.int(dataLen))
 
 	return webuiBuffer
+}
+
+// Private function that receives and handles WebView close handler callbacks.
+//
+//export goWebuiCloseHandlerWv
+func goWebuiCloseHandlerWv(window C.size_t) C._Bool {
+	goWindow := Window(window)
+	handler, exists := closeHandlerList[goWindow]
+	if !exists || handler == nil {
+		return C._Bool(true)
+	}
+	return C._Bool(handler(goWindow))
 }
 
 // Private function that receives and handles logger callbacks.
@@ -751,11 +782,13 @@ func (e *getArgError) Error() string {
 
 func (e Event) cStruct() *C.webui_event_t {
 	return &C.webui_event_t{
-		window:       C.size_t(e.Window),
-		event_type:   C.size_t(e.EventType),
-		element:      C.CString(e.Element),
-		event_number: C.size_t(e.eventNumber),
-		bind_id:      C.size_t(e.bindId),
+		window:        C.size_t(e.Window),
+		event_type:    C.size_t(e.EventType),
+		element:       C.CString(e.Element),
+		event_number:  C.size_t(e.eventNumber),
+		bind_id:       C.size_t(e.bindId),
+		client_id:     C.size_t(e.ClientId),
+		connection_id: C.size_t(e.ConnectionId),
 	}
 }
 
@@ -920,6 +953,25 @@ func (w Window) SetCustomParameters(params string) {
 	cparams := C.CString(params)
 	defer C.free(unsafe.Pointer(cparams))
 	C.webui_set_custom_parameters(C.size_t(w), cparams)
+}
+
+// Focus brings a window to the front and focuses it.
+func (w Window) Focus() {
+	C.webui_focus(C.size_t(w))
+}
+
+// WaitAsync waits asynchronously until all opened windows get closed.
+// Returns true if more windows are still open, false otherwise.
+// In WebView mode, call this from the main thread.
+func WaitAsync() bool {
+	return bool(C.webui_wait_async())
+}
+
+// SetCloseHandlerWebView sets a callback to catch the close event of a WebView window.
+// The handler must return false to prevent the close, or true to allow it.
+func (w Window) SetCloseHandlerWebView(handler func(Window) bool) {
+	closeHandlerList[w] = handler
+	C.go_webui_set_close_handler_wv(C.size_t(w))
 }
 
 // GetMimeType returns the HTTP mime type of a file.
