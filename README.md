@@ -33,6 +33,16 @@
 - Using private profile for safety
 - Cross-platform WebView
 
+<div align="center">
+
+![GPT](https://github.com/user-attachments/assets/70455739-94c9-410e-9519-2b0318129b4a)
+
+### _Ask AI Any Question About the Go-WebUI_
+
+### [WebUI GPT - Go](https://chatgpt.com/g/g-69de6652628c81919caefb6628ce0959-go-webui)
+
+</div>
+
 ## Installation
 
 > [!NOTE]
