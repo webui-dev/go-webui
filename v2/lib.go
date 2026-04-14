@@ -860,6 +860,14 @@ func GetArg[T any](e Event) (arg T, err error) {
 		*p = float64(C.webui_get_float(cEvent))
 	case *bool:
 		*p = bool(C.webui_get_bool(cEvent))
+	case *[]byte:
+		size := C.webui_get_size(cEvent)
+		ptr := C.webui_get_string(cEvent)
+		if ptr != nil && size > 0 {
+			*p = C.GoBytes(unsafe.Pointer(ptr), C.int(size))
+		} else {
+			*p = []byte{}
+		}
 	default:
 		if jsonErr := json.Unmarshal([]byte(C.GoString(C.webui_get_string(cEvent))), p); err != nil {
 			err = &getArgError{jsonErr, e.Element, reflect.TypeOf(ret).String()}
@@ -887,6 +895,14 @@ func GetArgAt[T any](e Event, idx uint) (arg T, err error) {
 		*p = float64(C.webui_get_float_at(cEvent, cIdx))
 	case *bool:
 		*p = bool(C.webui_get_bool_at(cEvent, cIdx))
+	case *[]byte:
+		size := C.webui_get_size_at(cEvent, cIdx)
+		ptr := C.webui_get_string_at(cEvent, cIdx)
+		if ptr != nil && size > 0 {
+			*p = C.GoBytes(unsafe.Pointer(ptr), C.int(size))
+		} else {
+			*p = []byte{}
+		}
 	default:
 		if jsonErr := json.Unmarshal([]byte(C.GoString(C.webui_get_string_at(cEvent, cIdx))), p); err != nil {
 			err = &getArgError{jsonErr, e.Element, reflect.TypeOf(ret).String()}
