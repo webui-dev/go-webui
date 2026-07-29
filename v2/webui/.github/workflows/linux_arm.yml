@@ -1,0 +1,180 @@
+# https://webui.me
+# https://github.com/webui-dev/webui
+# Copyright (c) 2020-2026 Hassan Draga.
+# Licensed under MIT License.
+# All rights reserved.
+# Canada.
+#
+# Special Thanks to Turiiya (https://github.com/ttytm)
+
+name: Linux ARM
+on:
+  workflow_call:
+
+jobs:
+  setup:
+    runs-on: buildjet-32vcpu-ubuntu-2204-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CPU Architecture
+        run: |
+          ARCH=$(uname -m)
+          if [[ "$ARCH" != "arm"* && "$ARCH" != "aarch64" ]]; then
+            echo "Expected ARM-based CPU architecture. Detected: $ARCH"
+            exit 1
+          else
+            echo "ARM CPU Detected: $ARCH"
+          fi
+      - name: Bundle WebUI Bridge
+        run: |
+          npm i -g esbuild
+          chmod +x bridge/build.sh
+          bridge/build.sh
+      - uses: actions/cache@v4
+        with:
+          path: bridge/webui_bridge.h
+          key: ${{ runner.os }}-${{ github.sha }}-bridge
+
+  build:
+    needs: setup
+    # Same as `buildjet-32vcpu-ubuntu-2204-arm`
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        include:
+          - cc: gcc
+            arch: arm
+          - cc: gcc
+            arch: arm64
+          - cc: clang
+            arch: arm
+          - cc: clang
+            arch: arm64
+      fail-fast: false
+    env:
+      ARTIFACT: webui-linux-${{ matrix.cc }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: bridge/webui_bridge.h
+          key: ${{ runner.os }}-${{ github.sha }}-bridge
+          fail-on-cache-miss: true
+      - name: Setup
+        run: |
+          sudo apt update
+          if [ "${{ matrix.cc }}" == "clang" ]; then
+            sudo apt install -y clang lld
+          fi
+
+          CC=${{ matrix.cc }}
+          if [ "${{ matrix.arch }}" == "arm64" ]; then
+            sudo apt install -y gcc-aarch64-linux-gnu
+            if [ "$CC" = "clang" ]; then
+              CC="clang --target=aarch64-linux-gnu"
+            else
+              CC=aarch64-linux-gnu-gcc
+            fi
+            wget https://github.com/openssl/openssl/releases/download/openssl-3.3.1/openssl-3.3.1.tar.gz
+            tar -xzf openssl-3.3.1.tar.gz
+            cd openssl-3.3.1
+            ./Configure linux-generic64 --prefix=/usr/aarch64-linux-gnu --cross-compile-prefix=aarch64-linux-gnu- --release -latomic
+            make
+            sudo make install
+          elif [ "${{ matrix.arch }}" == "arm" ]; then
+            sudo apt install -y gcc-arm-linux-gnueabi
+            if [ "$CC" = "clang" ]; then
+              CC="clang --target=arm-linux-gnueabi"
+            else
+              CC=arm-linux-gnueabi-gcc
+            fi
+            wget https://github.com/openssl/openssl/releases/download/openssl-3.3.1/openssl-3.3.1.tar.gz
+            tar -xzf openssl-3.3.1.tar.gz
+            cd openssl-3.3.1
+            ./Configure linux-generic32 --prefix=/usr/arm-linux-gnueabi --cross-compile-prefix=arm-linux-gnueabi- --release -latomic
+            make
+            sudo make install
+          fi
+          echo "CC=$CC" >> $GITHUB_ENV
+      - name: Build Debug Target
+        run: make debug
+      - name: Build Release Target
+        if: ${{ !cancelled() }}
+        run: make
+      - name: Build TLS Debug ARM64 Target 
+        if: matrix.arch == 'arm64'
+        run: make WEBUI_USE_TLS=1 debug WEBUI_TLS_INCLUDE="/usr/aarch64-linux-gnu/include" WEBUI_TLS_LIB="/usr/aarch64-linux-gnu/lib"
+      - name: Build TLS Debug ARM Target
+        if: matrix.arch == 'arm'
+        run: make WEBUI_USE_TLS=1 debug WEBUI_TLS_INCLUDE="/usr/arm-linux-gnueabi/include" WEBUI_TLS_LIB="/usr/arm-linux-gnueabi/lib"
+      - name: Build TLS Release ARM64 Target
+        if: matrix.arch == 'arm64'
+        run: make WEBUI_USE_TLS=1 WEBUI_TLS_INCLUDE="/usr/aarch64-linux-gnu/include" WEBUI_TLS_LIB="/usr/aarch64-linux-gnu/lib"
+      - name: Build TLS Release ARM Target
+        if: matrix.arch == 'arm'
+        run: make WEBUI_USE_TLS=1 WEBUI_TLS_INCLUDE="/usr/arm-linux-gnueabi/include" WEBUI_TLS_LIB="/usr/arm-linux-gnueabi/lib"
+      # - name: Build Examples
+      #   if: matrix.arch == 'arm64'
+      #   run: |
+      #     examples_base_dir=$(pwd)/examples/C
+      #     for example in $(find $examples_base_dir/* -maxdepth 0 -type d); do
+      #       echo "> $example"
+      #       cd $example || (exit_code=1 && continue)
+      #       if ! make CC=aarch64-linux-gnu-gcc; then
+      #          echo "Failed to build '$example'"
+      #          exit_code=1
+      #          continue
+      #       fi
+      #       if [[ ! -e "main" || ! -e "main-dyn" ]] ; then
+      #         echo "Failed to find executable for '$example'" && find .
+      #         exit_code=1
+      #         continue
+      #       fi
+      #     done
+      #     exit $exit_code
+      - name: Prepare Artifact
+        run: |
+          cp -r include dist
+          mv dist/ "$ARTIFACT"
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.ARTIFACT }}
+      - name: Prepare Release
+        if: >
+          github.repository_owner == 'webui-dev'
+          && (github.ref_type == 'tag' || (github.ref_name == 'main' && github.event_name == 'push'))
+        run: |
+          zip -r "$ARTIFACT.zip" "$ARTIFACT"
+          if [ $GITHUB_REF_TYPE == tag ]; then
+            echo "TAG=$GITHUB_REF_NAME" >> $GITHUB_ENV
+          else
+            {
+              echo "IS_PRERELEASE=true";
+              echo "TAG=nightly";
+              echo "TITLE=WebUI Nightly Build $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+              echo "BODY=Generated from commit $GITHUB_SHA."
+            } >> $GITHUB_ENV
+          fi
+      - name: Update Nightly Tag
+        if: env.IS_PRERELEASE
+        uses: richardsimko/update-tag@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: nightly
+      - name: Release
+        if: >
+          github.repository_owner == 'webui-dev'
+          && (github.ref_type == 'tag' || (github.ref_name == 'main' && github.event_name == 'push'))
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: ${{ env.ARTIFACT }}.zip
+          tag: ${{ env.TAG }}
+          body: ${{ env.BODY }}
+          name: ${{ env.TITLE }}
+          prerelease: ${{ env.IS_PRERELEASE }}
+          allowUpdates: true

@@ -1,0 +1,36 @@
+name: Zig Build
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        version: [0.14.0, 0.15.1]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        if: runner.os == 'macOS'
+        with:
+          xcode-version: latest-stable
+      - uses: actions/checkout@v4
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ matrix.version }}
+      - name: Build static library
+        run: zig build -Dverbose=debug
+      - name: Build dynamic library
+        if: ${{ !cancelled() }}
+        run: zig build -Ddynamic -Dverbose=debug
+      - name: Build static library with TLS support
+        if: runner.os == 'Linux'
+        run: zig build -Denable-tls -Dverbose=debug
+      - name: Build dynamic library with TLS support
+        if: runner.os == 'Linux'
+        run: zig build -Ddynamic -Denable-tls -Dverbose=debug
+      - name: Build examples
+        run: zig build examples

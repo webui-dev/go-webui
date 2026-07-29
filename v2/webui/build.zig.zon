@@ -1,0 +1,14 @@
+.{
+    .name = .webui,
+    .version = "2.5.0-beta.4",
+    .fingerprint = 0xac5d87f2e5831aa7,
+    .paths = .{
+        "src",
+        "include",
+        "bridge",
+        "build.zig",
+        "build.zig.zon",
+        "LICENSE",
+        "README.md",
+    },
+}
