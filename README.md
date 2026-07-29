@@ -2,7 +2,7 @@
 
 ![Logo](https://raw.githubusercontent.com/webui-dev/webui-logo/main/webui_go.png)
 
-# Go-WebUI v2.5.1
+# Go-WebUI v2.5.2
 
 #### [Features](#features) · [Installation](#installation) · [Usage](#usage) · [Documentation](#documentation) · [WebUI](https://github.com/webui-dev/webui)
 
@@ -81,9 +81,9 @@ The WebUI C library is vendored into this repository at [`v2/webui/`](https://gi
   `replace` the path accordingly in the `go.mod` file.
 
   ```
-  require github.com/webui-dev/go-webui/v2 v2.5.1
+  require github.com/webui-dev/go-webui/v2 v2.5.2
 
-  replace github.com/webui-dev/go-webui/v2 v2.5.1 => ./modules/go-webui/v2
+  replace github.com/webui-dev/go-webui/v2 v2.5.2 => ./modules/go-webui/v2
   ```
 
 - ### As git clone - for development and contribution purposes
