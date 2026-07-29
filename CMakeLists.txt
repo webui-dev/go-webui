@@ -1,0 +1,192 @@
+cmake_minimum_required(VERSION 3.18)
+
+# Project name
+project(WebUILibrary 
+    VERSION 2.5.0
+    DESCRIPTION "Use any web browser or WebView as GUI, with your preferred language in the backend and modern web technologies in the frontend, all in a lightweight portable library."
+    HOMEPAGE_URL "https://webui.me/")
+
+# Set C & C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+
+# In order to be able to link with other shared libraries on Linux we may need `-fPIC`.
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  # using Clang
+  add_compile_options(-fPIC)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  # using GCC
+  add_compile_options(-fPIC)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+  # using Intel C++
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  # using Visual Studio C++
+endif()
+
+# Variables for library names, source files, etc.
+set(WEBUI_DEFAULT_OUT_LIB_NAME "webui-2")
+
+# Conditional compilation for TLS
+option(WEBUI_USE_TLS "Enable TLS support" OFF)
+if (WEBUI_USE_TLS)
+    find_package(OpenSSL REQUIRED)
+    set(WEBUI_DEFAULT_OUT_LIB_NAME "webui-2-secure")
+endif()
+
+# Option to build example projects
+option(WEBUI_BUILD_EXAMPLES "Build WebUI examples" ON)
+
+if (NOT BUILD_SHARED_LIBS)
+    set(WEBUI_DEFAULT_OUT_LIB_NAME "${WEBUI_DEFAULT_OUT_LIB_NAME}-static")
+endif()
+
+# Output library name
+set(WEBUI_OUT_LIB_NAME "${WEBUI_DEFAULT_OUT_LIB_NAME}" CACHE STRING "Name of the output library")
+
+# Source files (already filled)
+set(SOURCE_FILES
+    src/civetweb/civetweb.c
+    src/webui.c
+)
+
+if (WIN32)
+    list(APPEND SOURCE_FILES src/webview/win32_wv2.cpp)
+endif()
+
+if (APPLE)
+    # enable macos webview
+    enable_language(OBJC)
+    set(CMAKE_OBJC_STANDARD 11)
+    list(APPEND SOURCE_FILES src/webview/wkwebview.m)
+endif()
+
+# Library targets
+add_library(webui ${SOURCE_FILES})
+target_include_directories(webui PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_compile_definitions(webui PUBLIC NO_CACHING NO_CGI USE_WEBSOCKET 
+    "$<$<CONFIG:Debug>:WEBUI_LOG>" "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
+
+if (BUILD_SHARED_LIBS AND WIN32)
+    target_compile_definitions(webui PRIVATE CIVETWEB_DLL_EXPORTS PUBLIC CIVETWEB_DLL_IMPORTS)
+endif()
+
+if (WEBUI_USE_TLS)
+    target_compile_definitions(webui PUBLIC WEBUI_TLS NO_SSL_DL OPENSSL_API_1_1)
+    target_link_libraries(webui PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+else()
+    target_compile_definitions(webui PUBLIC NO_SSL)
+endif()
+
+if (WIN32)
+    target_link_libraries(webui PRIVATE ws2_32 user32 shell32 ole32)
+elseif (APPLE)
+    # link required frameworks
+    find_library(COCOA_FRAMEWORK Cocoa REQUIRED)
+    find_library(WEBKIT_FRAMEWORK WebKit REQUIRED)
+
+    target_link_libraries(webui PRIVATE ${COCOA_FRAMEWORK} ${WEBKIT_FRAMEWORK})
+endif()
+
+set_target_properties(webui PROPERTIES
+    OUTPUT_NAME ${WEBUI_OUT_LIB_NAME})
+
+# Install headers
+install(FILES include/webui.h include/webui.hpp DESTINATION include)
+
+# Install targets
+install(TARGETS webui
+    EXPORT webui
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin)
+
+install(EXPORT webui
+    FILE webui-config.cmake
+    NAMESPACE webui::
+    DESTINATION share/webui
+)
+
+
+#//////////////////////////
+# Build examples 
+#//////////////////////////
+
+if (WEBUI_BUILD_EXAMPLES)
+    message(STATUS "WebUI Source directory is " ${CMAKE_CURRENT_SOURCE_DIR})
+    message(STATUS "WebUI Build directory is " ${CMAKE_BINARY_DIR})
+
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+    # C++ examples
+    add_executable(minimal_cpp ${CMAKE_CURRENT_SOURCE_DIR}/examples/C++/minimal/main.cpp)
+    add_executable(call_js_from_cpp ${CMAKE_CURRENT_SOURCE_DIR}/examples/C++/call_js_from_cpp/main.cpp)
+    add_executable(call_cpp_from_js ${CMAKE_CURRENT_SOURCE_DIR}/examples/C++/call_cpp_from_js/main.cpp)
+    add_executable(serve_a_folder_cpp ${CMAKE_CURRENT_SOURCE_DIR}/examples/C++/serve_a_folder/main.cpp)
+    add_executable(virtual_file_system_cpp ${CMAKE_CURRENT_SOURCE_DIR}/examples/C++/virtual_file_system/main.cpp)
+    add_executable(test_index_redirect_cpp ${CMAKE_CURRENT_SOURCE_DIR}/examples/C++/test_index_redirect/main.cpp)
+
+    # C examples
+    add_executable(minimal_c ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/minimal/main.c)
+    add_executable(call_js_from_c ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/call_js_from_c/main.c)
+    add_executable(call_c_from_js ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/call_c_from_js/main.c)
+    add_executable(serve_a_folder_c ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/serve_a_folder/main.c)
+    add_executable(virtual_file_system_c ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/virtual_file_system/main.c)
+    add_executable(test_index_redirect_c ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/test_index_redirect/main.c)
+    add_executable(public_network_access ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/public_network_access/main.c)
+    add_executable(web_app_multi_client ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/web_app_multi_client/main.c)
+    add_executable(chatgpt_api ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/chatgpt_api/main.c)
+    add_executable(custom_web_server ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/custom_web_server/main.c)
+    add_executable(react ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/react/main.c)
+    add_executable(frameless ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/frameless/main.c)
+    add_executable(text_editor ${CMAKE_CURRENT_SOURCE_DIR}/examples/C/text-editor/main.c)
+
+    target_link_libraries(minimal_cpp webui)
+    target_link_libraries(call_js_from_cpp webui)
+    target_link_libraries(call_cpp_from_js webui)
+    target_link_libraries(serve_a_folder_cpp webui)
+    target_link_libraries(virtual_file_system_cpp webui)
+    target_link_libraries(test_index_redirect_cpp webui)
+
+    target_link_libraries(minimal_c webui)
+    target_link_libraries(call_js_from_c webui)
+    target_link_libraries(call_c_from_js webui)
+    target_link_libraries(serve_a_folder_c webui)
+    target_link_libraries(virtual_file_system_c webui)
+    target_link_libraries(test_index_redirect_c webui)
+    target_link_libraries(public_network_access webui)
+    target_link_libraries(web_app_multi_client webui)
+    target_link_libraries(chatgpt_api webui)
+    target_link_libraries(custom_web_server webui)
+    target_link_libraries(react webui)
+    target_link_libraries(frameless webui)
+    target_link_libraries(text_editor webui)
+
+    if (MSVC)
+        set_target_properties(minimal_cpp PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(call_js_from_cpp PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(call_cpp_from_js PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(serve_a_folder_cpp PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(virtual_file_system_cpp PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(test_index_redirect_cpp PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(minimal_c PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(call_js_from_c PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(call_c_from_js PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(serve_a_folder_c PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(virtual_file_system_c PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(test_index_redirect_c PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(public_network_access PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(web_app_multi_client PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(chatgpt_api PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(custom_web_server PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(react PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(frameless PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+        set_target_properties(text_editor PROPERTIES LINK_FLAGS "/SubSystem:\"Windows\"" VS_DPI_AWARE "ON")
+    endif()
+
+    if (MSVC)
+        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT call_js_from_cpp)
+    endif()
+endif()

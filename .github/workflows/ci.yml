@@ -1,0 +1,54 @@
+# https://webui.me
+# https://github.com/webui-dev/webui
+# Copyright (c) 2020-2026 Hassan Draga.
+# Licensed under MIT License.
+# All rights reserved.
+# Canada.
+#
+# Special Thanks to Turiiya (https://github.com/ttytm)
+
+name: CI
+on:
+  push:
+    paths-ignore: ['**/*.md']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name == 'main' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    uses: ./.github/workflows/windows.yml
+    permissions:
+      contents: write
+
+  macos:
+    uses: ./.github/workflows/macos.yml
+    permissions:
+      contents: write
+
+  linux:
+    uses: ./.github/workflows/linux.yml
+    permissions:
+      contents: write
+
+  linux_arm:
+    uses: ./.github/workflows/linux_arm.yml
+    permissions:
+      contents: write
+
+  linux_redhat:
+    uses: ./.github/workflows/linux_redhat.yml
+    permissions:
+      contents: write
+
+  linux_arch:
+    uses: ./.github/workflows/linux_arch.yml
+    permissions:
+      contents: write
+
+  zig:
+    uses: ./.github/workflows/zig.yml
