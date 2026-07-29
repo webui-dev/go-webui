@@ -48,32 +48,15 @@
 > [!NOTE]
 > Until the next stable release it is recommended to use go-webui's latest development version.
 
+The WebUI C library is vendored into this repository at [`v2/webui/`](https://github.com/webui-dev/go-webui/tree/main/v2/webui) as a git subtree, so it ships with the Go module. There is no extra setup step and no submodule to initialize — a plain `go get` is enough.
+
 - ### As Go module
 
-> [!NOTE]
-> Always verify what will be run before using either of these methods.
-
-  Run this command to get the latest `go-webui` module version, and to sync the WebUI C library that it is using.
-
   ```sh
-  go run github.com/webui-dev/go-webui/v2/sync-webui@main
+  go get github.com/webui-dev/go-webui/v2@main
   ```
 
-  Alternatively, use the `setup.sh` or `setup.bat` script to do the same thing.
-
-  - Windows
-
-  ```sh
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.bat)"
-  ```
-
-  - Linux / macOS
-
-  ```sh
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/webui-dev/go-webui/main/setup.sh)"
-  ```
-
-- ### As submodule
+- ### As git submodule of your project
 
   The instructions below set up go-webui in a `modules` subdirectory of a go project.
 
@@ -92,15 +75,15 @@
   ```
 
   ```sh
-  git submodule update --init --filter=blob:none --recursive
+  git submodule update --init --filter=blob:none
   ```
 
-  `replace` the path accordingly in the `g.mod` file.
+  `replace` the path accordingly in the `go.mod` file.
 
   ```
   require github.com/webui-dev/go-webui/v2 v2.5.1
 
-  replace github.com/webui-dev/go-webui/v2 v2.5.1 => ./modules/go-webui
+  replace github.com/webui-dev/go-webui/v2 v2.5.1 => ./modules/go-webui/v2
   ```
 
 - ### As git clone - for development and contribution purposes
@@ -108,8 +91,15 @@
   The command below retrieves go-webui as a lightweight, filtered clone.
 
   ```sh
-  git clone --recursive --shallow-submodules --filter=blob:none --also-filter-submodules \
-    https://github.com/webui-dev/go-webui.git
+  git clone --filter=blob:none https://github.com/webui-dev/go-webui.git
+  ```
+
+- ### Updating the vendored WebUI C library
+
+  Maintainers pull the latest WebUI nightly into the subtree with:
+
+  ```sh
+  git subtree pull --prefix=v2/webui https://github.com/webui-dev/webui.git nightly --squash -m "Update WebUI to nightly"
   ```
 
 ## Usage

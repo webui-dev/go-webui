@@ -22,7 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
           path: go-webui
       - uses: maxim-lobanov/setup-xcode@v1
         if: runner.os == 'macOS'
@@ -37,11 +36,10 @@ jobs:
           mkdir $TEST_PROJECT && cd $TEST_PROJECT
           go mod init $TEST_PROJECT && ls -lh
           cp ../go-webui/examples/call_go_from_js.go ./main.go
-      - name: Setup WebUI library
-        run: |
-          cd $TEST_PROJECT
-          sh ../go-webui/setup.sh
-          sh ../go-webui/setup.sh # TODO: investigate why a second execution is required here.
+          # The WebUI C library ships inside the go-webui module (v2/webui subtree),
+          # so consuming the checkout is all the setup that is needed.
+          go mod edit -replace=github.com/webui-dev/go-webui/v2=../go-webui/v2
+          go mod tidy
       - name: Build
         run: |
           cd $TEST_PROJECT
@@ -57,8 +55,6 @@ jobs:
       TEST_PROJECT: 'go-webui-project'
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - uses: maxim-lobanov/setup-xcode@v1
         if: runner.os == 'macOS'
         with:
