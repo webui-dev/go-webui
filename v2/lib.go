@@ -67,6 +67,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"time"
 	"unsafe"
 )
 
@@ -418,6 +419,12 @@ func (w Window) SetKiosk(enable bool) {
 
 // Wait waits until all opened windows get closed.
 func Wait() {
+	// Wait for internal server threads
+	time.Sleep(100 * time.Millisecond)
+	if !bool(C.webui_wait_async()) {
+		return
+	}
+	// Wait for all windows to close
 	C.webui_wait()
 }
 
