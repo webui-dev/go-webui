@@ -21,7 +21,6 @@ const html = `<html>
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         display: flex;
         flex-direction: column;
-        border-radius: 10px;
         backdrop-filter: blur(24px);
         -webkit-backdrop-filter: blur(24px);
         border: 1px solid rgba(255, 255, 255, 0.12);
@@ -40,7 +39,8 @@ const html = `<html>
       }
       #title { font-size: 15px; font-weight: 500; }
       #buttons {
-        -webkit-app-region: no-drag;
+        -webkit-app-region: no-drag; /* Win32/macOS (Native) */
+        --webui-app-region: no-drag; /* Linux (Custom) */
         display: flex;
         gap: 12px;
       }
@@ -55,7 +55,7 @@ const html = `<html>
       .buttons span:active { transform: scale(0.9); filter: brightness(0.9); }
       .close { background: #ff5f57; }
       .minimize { background: #ffbd2e; }
-      /* .maximize { background: #28c940; } REMOVED */
+      .maximize { background: #28c940; }
       #content {
         flex-grow: 1;
         display: flex;
@@ -82,10 +82,11 @@ const html = `<html>
   </head>
   <body>
     <div id='ui-container'>
-      <div id='titlebar'>
+      <div id='titlebar' ondblclick='maximize()'>
         <span id='title'>Go WebUI Frameless WebView Window</span>
         <div id='buttons'>
           <span class='button minimize' onclick='minimize()'></span>
+          <span class='button maximize' onclick='maximize()'></span>
           <span class='button close' onclick='close_win()'></span>
         </div>
       </div>
@@ -125,7 +126,7 @@ func main() {
 	myWindow.SetSize(800, 600)
 	myWindow.SetFrameless(true)
 	myWindow.SetTransparent(true)
-	myWindow.SetResizable(false)
+	myWindow.SetResizable(true)
 	myWindow.SetCenter()
 
 	// Show the window as a WebView
