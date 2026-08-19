@@ -17,6 +17,7 @@
 
 // -- WebView -------------------------
 #ifdef _WIN32
+    #include <wchar.h>
     #include "webview/WebView2.h"
     #include "webview/win32_wv2.hpp"
 #elif __linux__
@@ -109,6 +110,8 @@
 #define WEBUI_COOKIES_BUF    (64)    // Authentification cookies buffer size
 #define WEBUI_NATIVE_BROWSER (99)    // Internal ID used to avoid terminating the user's native browser on exit
 #define WEBUI_SYS_CMD_TIMEOUT (1500) // Max time to wait for a system command to run
+#define WEBUI_MAX_PRINT_LEN (1024)    // Max characters to print before using chunked printing
+#define WEBUI_CHUNK_PRINT_LEN (64)   // Max characters to print per chunk (First chunk, last chunk)
 
 #ifdef WEBUI_TLS
 #define WEBUI_SECURE         "TLS-Encryption"
@@ -453,7 +456,17 @@ typedef struct _webui_window_t {
     webui_mutex_t mutex_win_exit_now;
     webui_mutex_t mutex_win_reusable;
     webui_mutex_t mutex_win_server_running;
+    webui_mutex_t mutex_win_thread;
     bool win_exit_now;
+    bool thread_running; // Persistent server thread is alive
+    bool server_start_requested; // `webui_show()` requested a serve cycle
+    bool destroy_requested; // The window should be reclaimed
+    bool reload_requested; // A setter changed the web server settings
+    bool monitor_running; // Folder monitor thread is alive
+    bool monitor_stop; // Folder monitor thread should exit
+    bool webview_running; // WebView thread is alive
+    bool browser_launched; // A web browser process was started for this window
+    size_t tasks; // In-flight event tasks using this window
     // WebView
     bool allow_webview;
     bool allow_browser;
@@ -487,8 +500,9 @@ typedef struct _webui_core_t {
     bool clients_token_check[WEBUI_MAX_IDS];
     char* cookies[WEBUI_MAX_IDS];
     bool cookies_single_set[WEBUI_MAX_IDS];
-    size_t servers;
+    size_t servers; // Active (shown and not yet closed) windows
     size_t showing;
+    size_t threads; // Alive window server threads
     size_t used_ports[WEBUI_MAX_IDS];
     size_t startup_timeout;
     size_t cb_count;
@@ -517,6 +531,7 @@ typedef struct _webui_core_t {
     webui_mutex_t mutex_win_connect;
     webui_mutex_t mutex_app_exit_now;
     webui_mutex_t mutex_is_more_servers;
+    webui_mutex_t mutex_allocator; // Window ID and port allocators
     webui_mutex_t mutex_http_handler;
     webui_mutex_t mutex_client;
     webui_mutex_t mutex_async_response;
@@ -574,6 +589,7 @@ static int _webui_system_win32_out(const char* cmd, char ** output, bool show);
 static bool _webui_socket_test_listen_win32(size_t port_num);
 static bool _webui_get_windows_reg_value(HKEY key, LPCWSTR reg, LPCWSTR value_name, char value[WEBUI_MAX_PATH]);
 static bool _webui_str_to_wide(const char *s, wchar_t **w);
+static HWND _webui_win32_get_browser_hwnd(_webui_window_t* win);
 #define WEBUI_THREAD_SERVER_START DWORD WINAPI _webui_server_thread(LPVOID arg)
 #define WEBUI_THREAD_RECEIVE DWORD WINAPI _webui_ws_process_thread(LPVOID _arg)
 #define WEBUI_THREAD_WEBVIEW DWORD WINAPI _webui_webview_thread(LPVOID arg)
@@ -587,6 +603,18 @@ static void * _webui_run_browser_task(void * _arg);
 #define WEBUI_THREAD_WEBVIEW void * _webui_webview_thread(void * arg)
 #define WEBUI_THREAD_MONITOR void * _webui_folder_monitor_thread(void * arg)
 #define WEBUI_THREAD_RETURN pthread_exit(NULL);
+#endif
+// Thread local storage. This depends on the compiler, not on the OS:
+// GCC on Windows ignores the Microsoft keyword, which would silently
+// turn a thread local into a variable shared by every thread.
+#if defined(_MSC_VER)
+    #define WEBUI_THREAD_LOCAL __declspec(thread)
+#elif defined(__GNUC__) || defined(__clang__) || defined(__TINYC__)
+    #define WEBUI_THREAD_LOCAL __thread
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+    #define WEBUI_THREAD_LOCAL _Thread_local
+#else
+    #error "WebUI needs thread local storage support from the compiler"
 #endif
 static void _webui_init(void);
 static bool _webui_show(_webui_window_t* win, struct mg_connection* client, const char* content, size_t browser);
@@ -654,14 +682,37 @@ static bool _webui_mutex_app_is_exit_now(int update);
 static bool _webui_mutex_is_more_servers_running(void);
 static void _webui_update_wait_state(void);
 static void _webui_servers_count(int delta);
-static size_t _webui_servers_get(void);
 static void _webui_showing_count(int delta);
+static void _webui_threads_count(int delta);
+static size_t _webui_threads_get(void);
 static bool _webui_wait_is_needed(void);
 static void _webui_wait_wake_up(void);
 static void _webui_wait_for_servers(void);
 static bool _webui_mutex_win_is_exit_now(_webui_window_t* win, int update);
 static bool _webui_mutex_is_webview_update(_webui_window_t* win, int update);
 static bool _webui_mutex_is_server_running(_webui_window_t* win, int update);
+static bool _webui_mutex_is_thread_running(_webui_window_t* win, int update);
+static bool _webui_mutex_is_start_requested(_webui_window_t* win, int update);
+static bool _webui_mutex_is_reload_requested(_webui_window_t* win, int update);
+static void _webui_window_request_reload(_webui_window_t* win);
+static void _webui_window_wait_for_reload(_webui_window_t* win);
+static bool _webui_window_thread_end(_webui_window_t* win);
+static bool _webui_window_cycle_end(_webui_window_t* win);
+static _webui_window_t* _webui_dereference_win_num(size_t num);
+static void _webui_start_server_thread(_webui_window_t* win);
+static void _webui_window_close_ui(_webui_window_t* win);
+static void _webui_window_task_count(_webui_window_t* win, int delta);
+static size_t _webui_window_task_get(_webui_window_t* win);
+static void _webui_window_wait_for_tasks(_webui_window_t* win);
+static void _webui_window_clear_clients(_webui_window_t* win);
+static bool _webui_mutex_is_monitor_running(_webui_window_t* win, int update);
+static bool _webui_mutex_is_monitor_stop(_webui_window_t* win, int update);
+static bool _webui_mutex_is_webview_running(_webui_window_t* win, int update);
+static void _webui_window_wait_for_webview(_webui_window_t* win);
+static bool _webui_monitor_should_stop(_webui_window_t* win);
+static void _webui_window_stop_monitor(_webui_window_t* win, bool created);
+static bool _webui_window_is_registered(size_t num, _webui_window_t* win);
+static void _webui_window_free(_webui_window_t* win);
 static void _webui_condition_init(webui_condition_t* cond);
 static void _webui_condition_wait(webui_condition_t* cond, webui_mutex_t* mutex);
 static void _webui_condition_signal(webui_condition_t* cond);
@@ -801,6 +852,10 @@ static WEBUI_THREAD_MONITOR;
 
 // -- Heap ----------------------------
 static _webui_core_t _webui;
+
+// The window whose user callback is currently
+// running on this thread, if any
+static WEBUI_THREAD_LOCAL _webui_window_t* _webui_callback_win = NULL;
 static _webui_log_t  _webui_log_data = { NULL, NULL };
 static const char* webui_html_served = "<html><head><title>Access Denied</title><script src=\"/webui.js\"></script><style>"
 "body{margin:0;background-repeat:no-repeat;background-attachment:fixed;background-color:#FF3CAC;background-image:linear-"
@@ -820,10 +875,41 @@ static const char* webui_def_icon = "<svg xmlns=\"http://www.w3.org/2000/svg\" w
 static void _webui_log(size_t level, const char *format, va_list args) {
     if (_webui_log_data.logger_func == NULL) {
         // Print log directly
-        if (level == WEBUI_LOGGER_LEVEL_ERROR) {
-          vfprintf(stderr, format, args);
+        va_list args_copy;
+        va_copy(args_copy, args);
+        int needed_size = vsnprintf(NULL, 0, format, args_copy);
+        va_end(args_copy);
+        if (needed_size < 0) {
+            if (level == WEBUI_LOGGER_LEVEL_ERROR) {
+                vfprintf(stderr, format, args);
+            } else {
+                vprintf(format, args);
+            }
         } else {
-          vprintf(format, args);
+            char buf[WEBUI_MAX_PRINT_LEN + 1];
+            char* buffer = (needed_size <= WEBUI_MAX_PRINT_LEN)
+                ? buf
+                : _webui_malloc((size_t)needed_size + 1);
+            if (buffer == NULL) {
+                if (level == WEBUI_LOGGER_LEVEL_ERROR) {
+                    vfprintf(stderr, format, args);
+                } else {
+                    vprintf(format, args);
+                }
+            } else {
+                vsnprintf(buffer, (size_t)needed_size + 1, format, args);
+                FILE* output = (level == WEBUI_LOGGER_LEVEL_ERROR) ? stderr : stdout;
+                if (needed_size <= WEBUI_MAX_PRINT_LEN) {
+                    fputs(buffer, output);
+                } else {
+                    fwrite(buffer, 1, WEBUI_CHUNK_PRINT_LEN, output);
+                    fputs(" ... ", output);
+                    fwrite(buffer + needed_size - WEBUI_CHUNK_PRINT_LEN, 1, WEBUI_CHUNK_PRINT_LEN, output);
+                }
+                if (buffer != buf) {
+                    _webui_free_mem(buffer);
+                }
+            }
         }
     } else {
         // Pass log to user logger
@@ -836,8 +922,8 @@ static void _webui_log(size_t level, const char *format, va_list args) {
             return;
         }
 
-        char buf[256];
-        char *buffer = (needed_size > 255) ? _webui_malloc(needed_size + 1) : buf;
+        char buf[WEBUI_MAX_PRINT_LEN + 1];
+        char *buffer = (needed_size > WEBUI_MAX_PRINT_LEN) ? _webui_malloc(needed_size + 1) : buf;
         if (buffer == NULL) {
             _webui_log_data.logger_func(WEBUI_LOGGER_LEVEL_ERROR, "Memory allocation failed for log", _webui_log_data.logger_user_data);
             return;
@@ -891,9 +977,9 @@ void webui_run_client(webui_event_t* e, const char* script) {
         return;
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     if (!_webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS))
         return;
@@ -922,9 +1008,9 @@ void webui_run(size_t window, const char* script) {
         return;
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     if (!_webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS))
         return;
@@ -944,10 +1030,9 @@ void webui_set_close_handler_wv(size_t window, bool(*close_handler)(size_t windo
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-
-    _webui_window_t* win = _webui.wins[window];
 
     #ifdef WEBUI_LOG
     _webui_log_info("[User]webui_set_close_handler(%zu, %p)", window, close_handler);
@@ -966,9 +1051,9 @@ void webui_set_file_handler(size_t window, const void*(*handler)(const char* fil
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Set the new `files_handler`
     win->files_handler = handler;
@@ -990,9 +1075,9 @@ void webui_set_file_handler_window(size_t window, const void*(*handler)(size_t w
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Reset any previous `files_handler`
     win->files_handler = NULL;
@@ -1024,9 +1109,9 @@ bool webui_script_client(webui_event_t* e, const char* script, size_t timeout,
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[e->window];
 
     if (!_webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS))
         return false;
@@ -1133,9 +1218,9 @@ bool webui_script(size_t window, const char* script, size_t timeout,
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Stop if multi-client mode is enabled.
     // we can't send and receive from all clients
@@ -1198,7 +1283,7 @@ size_t webui_new_window_id(size_t num) {
         return 0;
 
     // Check window ID
-    if (num < 1 || num > WEBUI_MAX_IDS)
+    if (num < 1 || num >= WEBUI_MAX_IDS)
         return 0;
 
     // Destroy the window if already exist
@@ -1207,13 +1292,16 @@ size_t webui_new_window_id(size_t num) {
 
     // Create a new window
     _webui_window_t* win = (_webui_window_t* ) _webui_malloc(sizeof(_webui_window_t));
+    _webui_mutex_lock(&_webui.mutex_allocator);
     _webui.wins[num] = win;
+    _webui_mutex_unlock(&_webui.mutex_allocator);
 
     // Mutex Initialisation
     _webui_mutex_init(&win->mutex_win_exit_now);
     _webui_mutex_init(&win->mutex_win_reusable);
     _webui_mutex_init(&win->mutex_webview_update);
     _webui_mutex_init(&win->mutex_win_server_running);
+    _webui_mutex_init(&win->mutex_win_thread);
     _webui_condition_init(&win->condition_webview_update);
 
     // Initialisation
@@ -1239,6 +1327,11 @@ size_t webui_new_window_id(size_t num) {
     // Auto bind JavaScript-Bridge Core API Handler
     webui_bind(num, "__webui_core_api__", _webui_bridge_api_handler);
 
+    // Start the persistent server thread of this window. It parks
+    // until `webui_show()` requests the first serve cycle, and lives
+    // until the window is destroyed or the application exits.
+    _webui_start_server_thread(win);
+
     #ifdef WEBUI_LOG
     _webui_log_info("[User] webui_new_window_id() -> New window #%zu @ 0x%p\n", num, win);
     #endif
@@ -1257,12 +1350,15 @@ size_t webui_get_new_window_id(void) {
     if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS))
         return 0;
 
+    _webui_mutex_lock(&_webui.mutex_allocator);
     for (size_t i = 1; i < WEBUI_MAX_IDS; i++) {
         if (_webui.wins[i] == NULL && !_webui.wins_reserved[i]) {
             _webui.wins_reserved[i] = true;
+            _webui_mutex_unlock(&_webui.mutex_allocator);
             return i;
         }
     }
+    _webui_mutex_unlock(&_webui.mutex_allocator);
 
     // We should never reach here
     WEBUI_ASSERT("webui_get_new_window_id() failed");
@@ -1279,9 +1375,9 @@ void webui_set_kiosk(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->kiosk_mode = status;
 }
@@ -1296,9 +1392,9 @@ void webui_set_custom_parameters(size_t window, char* params) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Always free old data to allow user to clear custom params
     // by passing an empty `params`.
@@ -1325,9 +1421,9 @@ void webui_set_resizable(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->resizable = status;
 }
@@ -1342,9 +1438,9 @@ void webui_set_high_contrast(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->disable_browser_high_contrast = !status;
 }
@@ -1421,9 +1517,9 @@ void webui_close_client(webui_event_t* e) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Remove cookies
     // _webui_client_cookies_free(win, _webui.clients[e->connection_id]);
@@ -1449,9 +1545,9 @@ void webui_close(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Make window reusable, so user can
     // call `webui_show()` again if needed.
@@ -1494,75 +1590,87 @@ void webui_destroy(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
-    if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
+    bool in_callback = (_webui_callback_win == win);
+
+    // Request the destruction, and learn if a server thread owns this
+    // window. Both are done under the same lock the server thread uses
+    // when it decides to reclaim, so exactly one side does the free:
+    // a running thread always sees this request and reclaims, a thread
+    // that already exited never does, and then it's up to us.
+    _webui_mutex_lock(&win->mutex_win_thread);
+    win->destroy_requested = true;
+    bool thread_owns = win->thread_running;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+
+    if (thread_owns) {
 
         // Freindly close
         webui_close(window);
 
-        // Wait for server threads to stop
+        // Ask the persistent server thread to exit. It unregisters
+        // and frees this window once it stopped everything.
+        _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_SET_TRUE);
+
+        if (in_callback) {
+            // This call comes from inside one of this window's own
+            // callbacks. Waiting here would block the event thread that
+            // the server thread is waiting for, so the reclaim is
+            // deferred and this returns right away.
+            return;
+        }
+
+        // Wait for the window to be reclaimed. The registry is polled
+        // instead of the window itself, because the window gets freed.
         _webui_timer_t timer_1;
         _webui_timer_start(&timer_1);
         for (;;) {
             _webui_sleep(10);
-            if (!_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS))
+            if (!_webui_window_is_registered(window, win))
                 break;
             if (_webui_timer_is_end(&timer_1, 2500))
                 break;
         }
 
-        if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
-
+        // Forced close. The window is still registered, so it's still
+        // alive: the reclaim happens under the same lock as the check.
+        _webui_mutex_lock(&_webui.mutex_allocator);
+        if (_webui.wins[window] == win) {
             #ifdef WEBUI_LOG
             _webui_log_info("[User] webui_destroy([%zu]) -> Forced close\n", window);
             #endif
-
-            // Forced close
             _webui_mutex_is_connected(win, WEBUI_MUTEX_SET_FALSE);
-
-            // Wait for server threads to stop
-            _webui_timer_t timer_2;
-            _webui_timer_start(&timer_2);
-            for (;;) {
-                _webui_sleep(100);
-                if (!_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS))
-                    break;
-                if (_webui_timer_is_end(&timer_2, 1500))
-                    break;
-            }
         }
+        _webui_mutex_unlock(&_webui.mutex_allocator);
+
+        // Wait more for the window to be reclaimed
+        _webui_timer_t timer_2;
+        _webui_timer_start(&timer_2);
+        for (;;) {
+            _webui_sleep(100);
+            if (!_webui_window_is_registered(window, win))
+                break;
+            if (_webui_timer_is_end(&timer_2, 1500))
+                break;
+        }
+        return;
     }
 
-    // Free memory resources
-    _webui_free_mem((void*)win->url);
-    _webui_free_mem((void*)win->html);
-    _webui_free_mem((void*)win->icon);
-    _webui_free_mem((void*)win->icon_type);
-    _webui_free_mem((void*)win->browser_path);
-    _webui_free_mem((void*)win->profile_path);
-    _webui_free_mem((void*)win->profile_name);
-    _webui_free_mem((void*)win->server_root_path);
-
-    // Free events
-    for (size_t i = 1; i < WEBUI_MAX_IDS; i++) {
-        if (win->events[i] != NULL)
-            _webui_free_mem((void*)win->events[i]);
+    // This window has no server thread, so nothing else can be using
+    // it. Unregister it, and free it here.
+    _webui_mutex_lock(&_webui.mutex_allocator);
+    bool reclaim = (_webui.wins[window] == win);
+    if (reclaim) {
+        _webui.wins[window] = NULL;
+        _webui.wins_reserved[window] = false;
     }
+    _webui_mutex_unlock(&_webui.mutex_allocator);
 
-    // Free Mutex
-    _webui_condition_destroy(&win->condition_webview_update);
-    _webui_mutex_destroy(&win->mutex_webview_update);
-    _webui_mutex_destroy(&win->mutex_win_exit_now);
-    _webui_mutex_destroy(&win->mutex_win_reusable);
-    _webui_mutex_destroy(&win->mutex_win_server_running);
-
-    // Free window struct
-    _webui_free_mem((void*)_webui.wins[window]);
-    _webui.wins[window] = NULL;
-    _webui.wins_reserved[window] = false;
+    if (reclaim)
+        _webui_window_free(win);
 }
 
 bool webui_is_shown(size_t window) {
@@ -1575,9 +1683,9 @@ bool webui_is_shown(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     return _webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS);
 }
@@ -1592,9 +1700,9 @@ void webui_set_icon(size_t window, const char* icon, const char* icon_type) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // The icon data and the icon type are both
     // required, otherwise ignore the call
@@ -1665,9 +1773,9 @@ void webui_set_icon_file(size_t window, const char* path) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // The icon file path is required, otherwise ignore the call
     if (_webui_is_empty(path))
@@ -1731,9 +1839,9 @@ void webui_navigate_client(webui_event_t* e, const char* url) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Web-Browser Window
     if (!win->webView) {
@@ -1763,9 +1871,9 @@ void webui_navigate(size_t window, const char* url) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Web-Browser Window
     if (!win->webView) {
@@ -1807,6 +1915,15 @@ void webui_clean(void) {
 
     // Initialization
     _webui_init();
+
+    if (_webui_callback_win != NULL) {
+        // Called from inside a callback: freeing now would crash the
+        // caller. Request application exit instead. Memory can be
+        // reclaimed by calling `webui_clean()` again after
+        // `webui_wait()` returns.
+        webui_exit();
+        return;
+    }
 
     // Final memory cleaning
     _webui_clean();
@@ -1974,7 +2091,7 @@ void webui_delete_profile(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui.wins[window] == NULL)
+    if (window < 1 || window >= WEBUI_MAX_IDS || _webui.wins[window] == NULL)
         return;
     _webui_window_t* win = _webui.wins[window];
 
@@ -2022,13 +2139,16 @@ const char* webui_start_server(size_t window, const char* content) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return "";
-    _webui_window_t* win = _webui.wins[window];
 
     // Check
-    if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS))
-        return "";
+    if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
+        // The server is already running. The URL is
+        // still valid because the server is persistent.
+        return (win->url != NULL ? win->url : "");
+    }
 
     // Make `wait()` waits forever
     webui_set_timeout(0);
@@ -2060,9 +2180,9 @@ bool webui_show_client(webui_event_t* e, const char* content) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Show the window using WebView or using any browser
     win->allow_browser = true;
@@ -2075,23 +2195,61 @@ bool webui_show_client(webui_event_t* e, const char* content) {
 #ifdef _WIN32
     // Callback for EnumWindows used to find the window handle of the web browser process
     // and bring it to the foreground (front).
-    BOOL CALLBACK _webui_win32_enum_proc(HWND hwnd, LPARAM lParam) {
-        DWORD targetPid = (DWORD)lParam;
-        DWORD pid = 0;
-        GetWindowThreadProcessId(hwnd, &pid);
-        if (pid == targetPid && IsWindowVisible(hwnd)) {
-            // Restore if minimized
-            if (IsIconic(hwnd)) {
-                ShowWindow(hwnd, SW_RESTORE);
-            }
-            // Bring to foreground
-            SetForegroundWindow(hwnd);
-            // stop enumeration
-            return FALSE; 
+    // Target of `_webui_win32_find_proc`. A window is matched either by
+    // the process owning it, or by a part of its title.
+    typedef struct {
+        DWORD pid;
+        const char* title;
+        HWND found;
+        int count;
+    }
+    _webui_win32_find_t;
+
+    // Count the windows matching a target, and remember the first one.
+    // The whole list is always walked, because a match is only usable
+    // when it is the single one: acting on a guess could resize or
+    // minimize a window of a completely different application.
+    BOOL CALLBACK _webui_win32_find_proc(HWND hwnd, LPARAM lParam) {
+
+        _webui_win32_find_t* target = (_webui_win32_find_t*)lParam;
+
+        // An owned window is a popup or a tool window of the
+        // browser, not the window the user sees as the app
+        if (!IsWindowVisible(hwnd) || (GetWindow(hwnd, GW_OWNER) != NULL))
+            return TRUE;
+
+        bool match = false;
+        if (target->pid != 0) {
+            DWORD pid = 0;
+            GetWindowThreadProcessId(hwnd, &pid);
+            match = (pid == target->pid);
         }
-        // continue enumeration
+        else if (target->title != NULL) {
+            char text[512] = {0};
+            if (GetWindowTextA(hwnd, text, (int)sizeof(text)) > 0)
+                match = (strstr(text, target->title) != NULL);
+        }
+
+        if (match) {
+            if (target->count == 0)
+                target->found = hwnd;
+            target->count++;
+        }
         return TRUE;
     }
+
+    // Return the window matching a target, but only when nothing
+    // else matches it too
+    static HWND _webui_win32_find_unique(DWORD pid, const char* title) {
+        _webui_win32_find_t target;
+        target.pid = pid;
+        target.title = title;
+        target.found = NULL;
+        target.count = 0;
+        EnumWindows(_webui_win32_find_proc, (LPARAM)&target);
+        return (target.count == 1 ? target.found : NULL);
+    }
+
 #endif
 
 void webui_focus(size_t window) {
@@ -2104,9 +2262,9 @@ void webui_focus(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     #ifdef _WIN32
     if (_webui.is_webview_mode) {
@@ -2119,10 +2277,22 @@ void webui_focus(size_t window) {
         }
     } else {
         // Web-Browser Window
-        DWORD pid = (DWORD)_webui_get_child_process_id(win);
-        if (pid != 0) {
-            // Set callback for EnumWindows
-            EnumWindows(_webui_win32_enum_proc, (LPARAM)pid);
+        HWND hwnd = _webui_win32_get_browser_hwnd(win);
+        if (hwnd != NULL) {
+            // Restore if minimized
+            if (IsIconic(hwnd))
+                ShowWindow(hwnd, SW_RESTORE);
+            // Windows only lets the foreground process change the
+            // foreground window, so this thread borrows the input
+            // state of the window that currently has it
+            DWORD current = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
+            DWORD target = GetWindowThreadProcessId(hwnd, NULL);
+            if ((current != 0) && (target != 0) && (current != target))
+                AttachThreadInput(current, target, TRUE);
+            BringWindowToTop(hwnd);
+            SetForegroundWindow(hwnd);
+            if ((current != 0) && (target != 0) && (current != target))
+                AttachThreadInput(current, target, FALSE);
         }
     }
 
@@ -2144,9 +2314,9 @@ bool webui_show(size_t window, const char* content) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Show the window using WebView or using any browser
     win->allow_browser = true;
@@ -2166,9 +2336,9 @@ bool webui_show_wv(size_t window, const char* content) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Show the window using WebView only
     win->allow_browser = false;
@@ -2188,9 +2358,9 @@ bool webui_show_browser(size_t window, const char* content, size_t browser) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Show the window using a specific browser only
     win->allow_browser = (browser == Webview ? false : true);
@@ -2207,9 +2377,9 @@ void* webui_get_context(webui_event_t* e) {
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Search
     size_t cb_index = 0;
@@ -2236,9 +2406,9 @@ void webui_set_context(size_t window, const char* element, void* context) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
     
     // Get bind Index
     // We should use `webui_bind()` with NULL to make `webui_set_context()`
@@ -2263,9 +2433,9 @@ size_t webui_bind(size_t window, const char* element, void(*func)(webui_event_t*
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     // Search
     size_t cb_index = 0;
@@ -2325,9 +2495,9 @@ size_t webui_get_best_browser(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 1; // 1. Default recommended web browser
-    _webui_window_t* win = _webui.wins[window];
     
     return _webui_find_the_best_browser(win);
 }
@@ -2345,9 +2515,9 @@ const char* webui_get_string_at(webui_event_t* e, size_t index) {
         return NULL;
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return NULL;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2373,9 +2543,9 @@ size_t webui_get_count(webui_event_t* e) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2472,9 +2642,9 @@ size_t webui_get_size_at(webui_event_t* e, size_t index) {
         return 0;
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2539,9 +2709,9 @@ void webui_return_int(webui_event_t* e, long long int n) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2578,9 +2748,9 @@ void webui_return_float(webui_event_t* e, double f) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2620,9 +2790,9 @@ void webui_return_string(webui_event_t* e, const char* s) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2666,7 +2836,7 @@ const char* webui_get_last_error_message() {
     #endif
 
     // TODO: Add error message.
-    return "Unknown error.";
+    return "";
 }
 
 void webui_return_bool(webui_event_t* e, bool b) {
@@ -2679,9 +2849,9 @@ void webui_return_bool(webui_event_t* e, bool b) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[e->event_number];
@@ -2735,9 +2905,9 @@ size_t webui_get_parent_process_id(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     #if defined(_WIN32)
     return (size_t)GetCurrentProcessId();
@@ -2780,9 +2950,9 @@ size_t webui_get_port(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     return win->server_port;
 }
@@ -2931,8 +3101,7 @@ bool webui_set_tls_certificate(const char* certificate_pem, const char* private_
         return true;
     }
     #else
-        WEBUI_ASSERT("SSL/TLS is not available in this library. "
-            "Please use the secure version of WebUI library");
+        WEBUI_ASSERT("SSL/TLS is not available in this library. Please use the secure version of WebUI library.");
     #endif
 
     return false;
@@ -2992,9 +3161,9 @@ void webui_set_frameless(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->frameless = status;
 }
@@ -3009,9 +3178,9 @@ void webui_set_transparent(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->transparent = status;
 }
@@ -3025,9 +3194,9 @@ void webui_set_event_blocking(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->ws_block = status;
 }
@@ -3042,14 +3211,20 @@ bool webui_set_port(size_t window, size_t port) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     if (_webui_port_is_used(port))
         return false;
 
     win->custom_server_port = port;
+
+    if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
+        // The server is already listening: reload
+        // it, so the new port takes effect
+        _webui_window_request_reload(win);
+    }
     return true;
 }
 
@@ -3063,9 +3238,9 @@ size_t webui_get_child_process_id(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     return _webui_get_child_process_id(win);
 }
@@ -3080,9 +3255,9 @@ void* webui_win32_get_hwnd(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return NULL;
-    _webui_window_t* win = _webui.wins[window];
 
     #ifdef _WIN32
     if (_webui.is_webview_mode) {
@@ -3130,9 +3305,9 @@ void* webui_get_hwnd(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return NULL;
-    _webui_window_t* win = _webui.wins[window];
 
     if (_webui.is_webview_mode) {
       if (win->webView) {
@@ -3158,11 +3333,133 @@ void webui_set_hide(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     win->hide = status;
+}
+
+static bool _webui_get_html_title(const char* html, char* title, size_t title_len) {
+
+    // Read the `<title>` of an HTML document. A browser shows it as the
+    // title of the window, which is how a window gets recognized when
+    // its process cannot be identified.
+
+    if ((html == NULL) || (title == NULL) || (title_len < 2))
+        return false;
+
+    const char* start = strstr(html, "<title>");
+    if (start == NULL)
+        return false;
+    start += 7;
+
+    const char* end = strstr(start, "</title>");
+    if ((end == NULL) || (end <= start))
+        return false;
+
+    size_t len = (size_t)(end - start);
+    if (len >= title_len)
+        len = title_len - 1;
+    memcpy(title, start, len);
+    title[len] = '\0';
+    return true;
+}
+
+#ifdef _WIN32
+static HWND _webui_win32_get_browser_hwnd(_webui_window_t* win) {
+
+    // Find the native window of the web browser showing this window.
+    // Each way of finding it is only trusted when it points to a single
+    // window. Anything else is a guess, and a wrong guess would move a
+    // window of another application.
+
+    HWND hwnd = NULL;
+
+    // 1. The process owning the window. Browsers keep all their windows
+    // in one process, so this only tells them apart when this one is
+    // the only window that process is showing.
+    size_t pid = _webui_get_child_process_id(win);
+    if (pid != 0)
+        hwnd = _webui_win32_find_unique((DWORD)pid, NULL);
+
+    // 2. The address the page was loaded from. Browsers show it as the
+    // window title when the page has no title of its own, and it holds
+    // this window's own port, so it cannot name any other window.
+    if (hwnd == NULL) {
+        char address[64] = {0};
+        WEBUI_SN_PRINTF_STATIC(address, sizeof(address), "localhost:%zu", win->server_port);
+        hwnd = _webui_win32_find_unique(0, address);
+    }
+
+    // 3. The title of the page. This is the last way to try, because
+    // the title belongs to the app author and any other window may
+    // carry the same one, in which case this is given up as well.
+    if (hwnd == NULL) {
+        char title[512] = {0};
+        if (_webui_get_html_title(win->html, title, sizeof(title)) && (title[0] != '\0'))
+            hwnd = _webui_win32_find_unique(0, title);
+    }
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_win32_get_browser_hwnd([%zu]) -> %s\n",
+        win->num, (hwnd != NULL ? "Found" : "No single window found"));
+    #endif
+
+    return hwnd;
+}
+#endif
+
+static void _webui_browser_window_state(_webui_window_t* win, bool maximize) {
+
+    // Minimize or maximize the web browser window of a window. A page
+    // cannot do this to its own browser window, so the native window of
+    // the browser is asked instead.
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_browser_window_state([%zu], %s)\n",
+        win->num, (maximize ? "maximize" : "minimize"));
+    #endif
+
+    #ifdef _WIN32
+    HWND hwnd = _webui_win32_get_browser_hwnd(win);
+    if (hwnd != NULL)
+        ShowWindow(hwnd, (maximize ? SW_MAXIMIZE : SW_MINIMIZE));
+
+    #elif __linux__
+    size_t pid = _webui_get_child_process_id(win);
+    if (pid == 0)
+        return;
+    // The window manager owns the window, and it's reached through
+    // the tools every X11 desktop provides. Wayland has no equivalent.
+    char cmd[512];
+    if (maximize) {
+        WEBUI_SN_PRINTF_STATIC(cmd, sizeof(cmd),
+            "WID=$(xdotool search --pid %zu --onlyvisible --limit 1 2>/dev/null | head -n 1); "
+            "[ -n \"$WID\" ] && wmctrl -i -r $WID -b add,maximized_vert,maximized_horz",
+            pid);
+    } else {
+        WEBUI_SN_PRINTF_STATIC(cmd, sizeof(cmd),
+            "xdotool search --pid %zu --onlyvisible --limit 1 windowminimize", pid);
+    }
+    _webui_cmd_async(win, cmd, false);
+    #else
+    size_t pid = _webui_get_child_process_id(win);
+    if (pid == 0)
+        return;
+    // Needs the accessibility permission to be granted to this app
+    char cmd[512];
+    if (maximize) {
+        WEBUI_SN_PRINTF_STATIC(cmd, sizeof(cmd),
+            "osascript -e 'tell application \"System Events\" to perform action \"AXZoomWindow\" "
+            "of window 1 of (first process whose unix id is %zu)'", pid);
+    } else {
+        WEBUI_SN_PRINTF_STATIC(cmd, sizeof(cmd),
+            "osascript -e 'tell application \"System Events\" to set value of attribute "
+            "\"AXMinimized\" of window 1 of (first process whose unix id is %zu) to true'", pid);
+    }
+    _webui_cmd_async(win, cmd, false);
+    #endif
 }
 
 void webui_minimize(size_t window) {
@@ -3175,31 +3472,37 @@ void webui_minimize(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     if(win->webView) {
         _webui_wv_minimize(win->webView);
+    }
+    else {
+        _webui_browser_window_state(win, false);
     }
 }
 
 void webui_maximize(size_t window) {
 
     #ifdef WEBUI_LOG
-    _webui_log_info("[User] webui_minimize(%zu)\n", window);
+    _webui_log_info("[User] webui_maximize(%zu)\n", window);
     #endif
 
     // Initialization
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     if(win->webView) {
         _webui_wv_maximize(win->webView);
+    }
+    else {
+        _webui_browser_window_state(win, true);
     }
 }
 
@@ -3213,9 +3516,9 @@ void webui_set_size(size_t window, unsigned int width, unsigned int height) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     if (width < WEBUI_MIN_WIDTH || width > WEBUI_MAX_WIDTH || height < WEBUI_MIN_HEIGHT ||
         height > WEBUI_MAX_HEIGHT) {
@@ -3270,9 +3573,9 @@ void webui_set_minimum_size(size_t window, unsigned int width, unsigned int heig
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     if (width < WEBUI_MIN_WIDTH || width > WEBUI_MAX_WIDTH || height < WEBUI_MIN_HEIGHT ||
         height > WEBUI_MAX_HEIGHT) {
@@ -3296,9 +3599,9 @@ void webui_set_position(size_t window, unsigned int x, unsigned int y) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     int X = x;
     int Y = y;
@@ -3358,9 +3661,9 @@ void webui_set_center(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     unsigned int screen_width = 0;
     unsigned int screen_height = 0;
@@ -3424,9 +3727,9 @@ void webui_set_profile(size_t window, const char* name, const char* path) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Some wrappers do not guarantee pointers stay valid,
     // so, let's make our copy.
@@ -3469,9 +3772,9 @@ void webui_set_proxy(size_t window, const char* proxy_server) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Some wrappers do not guarantee pointers stay valid,
     // so, let's make our copy.
@@ -3522,9 +3825,12 @@ const char* webui_get_url(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return NULL;
-    _webui_window_t* win = _webui.wins[window];
+
+    // Report the URL of the new server if a reload is pending
+    _webui_window_wait_for_reload(win);
 
     // Check if local server is started
     if (_webui_is_empty(win->url)) {
@@ -3558,11 +3864,18 @@ void webui_set_public(size_t window, bool status) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
-    win->is_public = status;
+    if (win->is_public != status) {
+        win->is_public = status;
+        if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
+            // The server is already listening: reload it,
+            // so the new host binding takes effect
+            _webui_window_request_reload(win);
+        }
+    }
 }
 
 void webui_send_raw_client(webui_event_t* e, const char* function, const void* raw, size_t size) {
@@ -3578,9 +3891,9 @@ void webui_send_raw_client(webui_event_t* e, const char* function, const void* r
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Generate data
     size_t data_len = _webui_strlen(function) + 1 + size;
@@ -3628,9 +3941,9 @@ void webui_send_raw(size_t window, const char* function, const void * raw, size_
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Generate data
     size_t data_len = _webui_strlen(function) + 1 + size;
@@ -3846,7 +4159,7 @@ void webui_exit(void) {
     // safely exit and finish cleaning up.
     for (size_t i = 0; i < 4; i++) {
         _webui_sleep(500);
-        if (_webui_servers_get() < 1) {
+        if (_webui_threads_get() < 1) {
             // No more server threads are running
             break;
         }
@@ -4194,9 +4507,9 @@ void webui_set_runtime(size_t window, size_t runtime) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     if (runtime != Deno && runtime != NodeJS && runtime != Bun)
         win->runtime = None;
@@ -4234,9 +4547,9 @@ bool webui_set_root_folder(size_t window, const char* path) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Fix path
     char full_path[WEBUI_MAX_PATH] = {0};
@@ -4249,8 +4562,7 @@ bool webui_set_root_folder(size_t window, const char* path) {
     }
     #endif
     
-    if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS) || 
-        _webui_is_empty(path) || 
+    if (_webui_is_empty(path) ||
         (_webui_strlen(path) > WEBUI_MAX_PATH) ||
         !_webui_folder_exist(path)) {
 
@@ -4264,6 +4576,9 @@ bool webui_set_root_folder(size_t window, const char* path) {
     #ifdef WEBUI_LOG
     _webui_log_info("[User] webui_set_root_folder() -> Success\n");
     #endif
+    // The HTTP handler and the file serving logic read this path on
+    // every request, so a running window server picks it up live,
+    // without any reload
     WEBUI_SN_PRINTF_DYN(win->server_root_path, WEBUI_MAX_PATH, "%s", path);
     return true;
 }
@@ -4316,9 +4631,9 @@ static void _webui_interface_bind_handler_all(webui_event_t* e) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Check for all events-bind functions
     if (win->has_all_events) {
@@ -4355,9 +4670,9 @@ static void _webui_interface_bind_handler(webui_event_t* e) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[e->window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(e->window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[e->window];
 
     // Check for the regular bind functions
     if (!_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) && !_webui_is_empty(e->element)) {
@@ -4421,9 +4736,9 @@ const char* webui_interface_get_string_at(size_t window, size_t event_number, si
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return NULL;
-    _webui_window_t* win = _webui.wins[window];
 
     // New Event (Wrapper)
     webui_event_t e;
@@ -4440,9 +4755,9 @@ long long int webui_interface_get_int_at(size_t window, size_t event_number, siz
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     // New Event (Wrapper)
     webui_event_t e;
@@ -4459,9 +4774,9 @@ double webui_interface_get_float_at(size_t window, size_t event_number, size_t i
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return ((double)(0.0));
-    _webui_window_t* win = _webui.wins[window];
 
     // New Event (Wrapper)
     webui_event_t e;
@@ -4478,9 +4793,9 @@ bool webui_interface_get_bool_at(size_t window, size_t event_number, size_t inde
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // New Event (Wrapper)
     webui_event_t e;
@@ -4497,9 +4812,9 @@ size_t webui_interface_get_size_at(size_t window, size_t event_number, size_t in
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     // New Event (Wrapper)
     webui_event_t e;
@@ -4516,9 +4831,9 @@ size_t webui_interface_bind(size_t window, const char* element, void(*func)(size
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     // Bind
     size_t cb_index = 0;
@@ -4543,9 +4858,9 @@ void webui_interface_set_response(size_t window, size_t event_number, const char
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4585,9 +4900,9 @@ void webui_interface_set_response_file_handler(size_t window, const void* respon
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Check if the response is empty
     if (length == 0) {
@@ -4669,9 +4984,9 @@ size_t webui_interface_get_window_id(size_t window) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return 0;
-    _webui_window_t* win = _webui.wins[window];
 
     return win->num;
 }
@@ -4686,9 +5001,9 @@ bool webui_interface_show_client(size_t window, size_t event_number, const char*
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4713,9 +5028,9 @@ void webui_interface_close_client(size_t window, size_t event_number) {
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4740,9 +5055,9 @@ void webui_interface_send_raw_client(size_t window, size_t event_number, const c
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4767,9 +5082,9 @@ void webui_interface_navigate_client(size_t window, size_t event_number, const c
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4794,9 +5109,9 @@ void webui_interface_run_client(size_t window, size_t event_number, const char* 
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4821,9 +5136,9 @@ bool webui_interface_script_client(size_t window, size_t event_number, const cha
     _webui_init();
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return false;
-    _webui_window_t* win = _webui.wins[window];
 
     // Get event inf
     webui_event_inf_t* event_inf = win->events[event_number];
@@ -4845,9 +5160,9 @@ void* webui_interface_get_context(size_t window, size_t event_number) {
     #endif
 
     // Dereference
-    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui.wins[window] == NULL)
+    _webui_window_t* win = _webui_dereference_win_num(window);
+    if (win == NULL)
         return NULL;
-    _webui_window_t* win = _webui.wins[window];
 
     // New Event (Wrapper)
     webui_event_t e;
@@ -5524,14 +5839,18 @@ static const void* _webui_call_external_file_handler_cb(_webui_window_t* win, co
 
     // Call user callback
     const void* callback_resp = NULL;
+    _webui_window_t* previous_cb_win = _webui_callback_win;
+    _webui_callback_win = win;
     if (win->files_handler_window != NULL) {
         callback_resp = win->files_handler_window(win->num, path, (int*)length);
     } else if (win->files_handler != NULL) {
         callback_resp = win->files_handler(path, (int*)length);
     } else {
         // No callback
+        _webui_callback_win = previous_cb_win;
         return NULL;
     }
+    _webui_callback_win = previous_cb_win;
 
     // Async response wait
     if (_webui.config.asynchronous_response) {
@@ -6322,10 +6641,18 @@ static void _webui_servers_count(int delta) {
     _webui_update_wait_state();
 }
 
-static size_t _webui_servers_get(void) {
+static void _webui_threads_count(int delta) {
 
     _webui_mutex_lock(&_webui.mutex_is_more_servers);
-    size_t count = _webui.servers;
+    if (delta > 0) _webui.threads++;
+    else if (_webui.threads > 0) _webui.threads--;
+    _webui_mutex_unlock(&_webui.mutex_is_more_servers);
+}
+
+static size_t _webui_threads_get(void) {
+
+    _webui_mutex_lock(&_webui.mutex_is_more_servers);
+    size_t count = _webui.threads;
     _webui_mutex_unlock(&_webui.mutex_is_more_servers);
     return count;
 }
@@ -6377,6 +6704,15 @@ static void _webui_wait_for_servers(void) {
     _webui_mutex_unlock(&_webui.mutex_wait);
 }
 
+static _webui_window_t* _webui_dereference_win_num(size_t num) {
+
+    if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS))
+        return NULL;
+    if (num < 1 || num >= WEBUI_MAX_IDS)
+        return NULL;
+    return _webui.wins[num];
+}
+
 static bool _webui_mutex_is_server_running(_webui_window_t* win, int update) {
 
     bool status = false;
@@ -6386,6 +6722,334 @@ static bool _webui_mutex_is_server_running(_webui_window_t* win, int update) {
     status = win->server_running;
     _webui_mutex_unlock(&win->mutex_win_server_running);
     return status;
+}
+
+static bool _webui_mutex_is_thread_running(_webui_window_t* win, int update) {
+
+    bool status = false;
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (update == WEBUI_MUTEX_SET_TRUE) win->thread_running = true;
+    else if (update == WEBUI_MUTEX_SET_FALSE) win->thread_running = false;
+    status = win->thread_running;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return status;
+}
+
+static bool _webui_mutex_is_start_requested(_webui_window_t* win, int update) {
+
+    bool status = false;
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (update == WEBUI_MUTEX_SET_TRUE) win->server_start_requested = true;
+    else if (update == WEBUI_MUTEX_SET_FALSE) win->server_start_requested = false;
+    status = win->server_start_requested;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return status;
+}
+
+static bool _webui_mutex_is_reload_requested(_webui_window_t* win, int update) {
+
+    bool status = false;
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (update == WEBUI_MUTEX_SET_TRUE) win->reload_requested = true;
+    else if (update == WEBUI_MUTEX_SET_FALSE) win->reload_requested = false;
+    status = win->reload_requested;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return status;
+}
+
+static void _webui_window_request_reload(_webui_window_t* win) {
+
+    // Ask the persistent server thread of a window to restart its web
+    // server using the current settings. The flag also ends the current
+    // serve cycle, so the thread reaches the reload immediately.
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_window_request_reload([%zu])\n", win->num);
+    #endif
+
+    // The clients are bound to the server that is about to be stopped.
+    // Before it goes down, they are told where the window is moving to,
+    // and to go there as soon as the new server answers. Waiting for
+    // the answer is what makes it safe: the old server is still up
+    // while this runs, and the new one may need a moment to listen.
+    if (_webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS)) {
+
+        size_t new_port = (win->custom_server_port > 0 ?
+            win->custom_server_port : win->server_port
+        );
+
+        char js[1024];
+        WEBUI_SN_PRINTF_STATIC(js, sizeof(js),
+            "(function(){try{"
+            "var u=new URL(location.href);u.port='%zu';var t=u.href;var n=0;"
+            "var i=setInterval(function(){"
+            "if(++n>150){clearInterval(i);return;}"
+            "fetch(t,{cache:'no-store',mode:'no-cors'}).then(function(){"
+            "clearInterval(i);location.replace(t);}).catch(function(){});"
+            "},200);}catch(e){}})();",
+            new_port
+        );
+
+        _webui_send_all(win, 0, WEBUI_CMD_JS_QUICK, js, _webui_strlen(js));
+    }
+
+    _webui_mutex_is_reload_requested(win, WEBUI_MUTEX_SET_TRUE);
+}
+
+static void _webui_window_wait_for_reload(_webui_window_t* win) {
+
+    // Wait for a pending reload of this window to complete. The reload
+    // flag stays set until the web server is listening again, so after
+    // this the window port and URL are the final ones.
+
+    if (!_webui_mutex_is_reload_requested(win, WEBUI_MUTEX_GET_STATUS))
+        return;
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_window_wait_for_reload([%zu])\n", win->num);
+    #endif
+
+    _webui_timer_t timer;
+    _webui_timer_start(&timer);
+    for (;;) {
+        _webui_sleep(1);
+        if (!_webui_mutex_is_reload_requested(win, WEBUI_MUTEX_GET_STATUS))
+            break;
+        if (!_webui_mutex_is_thread_running(win, WEBUI_MUTEX_GET_STATUS))
+            break;
+        if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS))
+            break;
+        if (_webui_timer_is_end(&timer, 5000))
+            break;
+    }
+}
+
+static bool _webui_window_thread_end(_webui_window_t* win) {
+
+    // Should the persistent server thread of this window exit?
+    return (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) ||
+        _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_GET_STATUS));
+}
+
+static bool _webui_window_cycle_end(_webui_window_t* win) {
+
+    // Should the current serve cycle of this window end? A reload ends
+    // the cycle as well, so the server gets restarted right away instead
+    // of waiting for the connection timeouts to expire.
+    return (_webui_window_thread_end(win) ||
+        _webui_mutex_is_reload_requested(win, WEBUI_MUTEX_GET_STATUS));
+}
+
+static void _webui_window_task_count(_webui_window_t* win, int delta) {
+
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (delta > 0) win->tasks++;
+    else if (win->tasks > 0) win->tasks--;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+}
+
+static size_t _webui_window_task_get(_webui_window_t* win) {
+
+    _webui_mutex_lock(&win->mutex_win_thread);
+    size_t count = win->tasks;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return count;
+}
+
+static bool _webui_mutex_is_monitor_running(_webui_window_t* win, int update) {
+
+    bool status = false;
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (update == WEBUI_MUTEX_SET_TRUE) win->monitor_running = true;
+    else if (update == WEBUI_MUTEX_SET_FALSE) win->monitor_running = false;
+    status = win->monitor_running;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return status;
+}
+
+static bool _webui_mutex_is_monitor_stop(_webui_window_t* win, int update) {
+
+    bool status = false;
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (update == WEBUI_MUTEX_SET_TRUE) win->monitor_stop = true;
+    else if (update == WEBUI_MUTEX_SET_FALSE) win->monitor_stop = false;
+    status = win->monitor_stop;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return status;
+}
+
+static bool _webui_mutex_is_webview_running(_webui_window_t* win, int update) {
+
+    bool status = false;
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (update == WEBUI_MUTEX_SET_TRUE) win->webview_running = true;
+    else if (update == WEBUI_MUTEX_SET_FALSE) win->webview_running = false;
+    status = win->webview_running;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+    return status;
+}
+
+static void _webui_window_wait_for_webview(_webui_window_t* win) {
+
+    // Wait for the WebView thread of a window to finish. It was already
+    // asked to stop by `_webui_window_close_ui()`. Without this wait the
+    // window could not be reclaimed while its WebView is still closing,
+    // and destroying it would stall until the timeouts expire.
+
+    if (!_webui_mutex_is_webview_running(win, WEBUI_MUTEX_GET_STATUS))
+        return;
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_window_wait_for_webview([%zu])\n", win->num);
+    #endif
+
+    _webui_timer_t timer;
+    _webui_timer_start(&timer);
+    for (;;) {
+        if (!_webui_mutex_is_webview_running(win, WEBUI_MUTEX_GET_STATUS))
+            break;
+        if (_webui_timer_is_end(&timer, 3000)) {
+            #ifdef WEBUI_LOG
+            _webui_log_debug("[Core]\t\t_webui_window_wait_for_webview([%zu]) -> Timeout\n", win->num);
+            #endif
+            break;
+        }
+        _webui_sleep(10);
+    }
+}
+
+static bool _webui_monitor_should_stop(_webui_window_t* win) {
+
+    // Should the folder monitor thread of this window exit?
+    return (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) ||
+        _webui_mutex_is_monitor_stop(win, WEBUI_MUTEX_GET_STATUS));
+}
+
+static void _webui_window_stop_monitor(_webui_window_t* win, bool created) {
+
+    // Ask the folder monitor thread of a window to exit, and wait for
+    // it. The monitor polls its stop flag, so no thread gets killed
+    // while it may hold a lock or an open handle.
+
+    if (!created)
+        return;
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_window_stop_monitor([%zu])\n", win->num);
+    #endif
+
+    _webui_mutex_is_monitor_stop(win, WEBUI_MUTEX_SET_TRUE);
+
+    _webui_timer_t timer;
+    _webui_timer_start(&timer);
+    for (;;) {
+        if (!_webui_mutex_is_monitor_running(win, WEBUI_MUTEX_GET_STATUS))
+            break;
+        if (_webui_timer_is_end(&timer, 3000)) {
+            #ifdef WEBUI_LOG
+            _webui_log_debug("[Core]\t\t_webui_window_stop_monitor([%zu]) -> Timeout\n", win->num);
+            #endif
+            break;
+        }
+        _webui_sleep(10);
+    }
+}
+
+static bool _webui_window_is_registered(size_t num, _webui_window_t* win) {
+
+    if (num < 1 || num >= WEBUI_MAX_IDS)
+        return false;
+    _webui_mutex_lock(&_webui.mutex_allocator);
+    bool status = (_webui.wins[num] == win);
+    _webui_mutex_unlock(&_webui.mutex_allocator);
+    return status;
+}
+
+static void _webui_window_free(_webui_window_t* win) {
+
+    // Free a window and all the resources it owns. The caller must
+    // guarantee that nothing can reach this window anymore: it must be
+    // unregistered, its server thread stopped, its event tasks retired,
+    // and its folder monitor stopped.
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_window_free([%zu])\n", win->num);
+    #endif
+
+    _webui_free_mem((void*)win->url);
+    _webui_free_mem((void*)win->public_url);
+    _webui_free_mem((void*)win->html);
+    _webui_free_mem((void*)win->icon);
+    _webui_free_mem((void*)win->icon_type);
+    _webui_free_mem((void*)win->browser_path);
+    _webui_free_mem((void*)win->profile_path);
+    _webui_free_mem((void*)win->profile_name);
+    _webui_free_mem((void*)win->server_root_path);
+    _webui_free_mem((void*)win->user_index_file);
+    _webui_free_mem((void*)win->user_index_file_encoded);
+
+    // Free events
+    for (size_t i = 1; i < WEBUI_MAX_IDS; i++) {
+        if (win->events[i] != NULL)
+            _webui_free_mem((void*)win->events[i]);
+    }
+
+    // Free Mutex
+    _webui_condition_destroy(&win->condition_webview_update);
+    _webui_mutex_destroy(&win->mutex_webview_update);
+    _webui_mutex_destroy(&win->mutex_win_exit_now);
+    _webui_mutex_destroy(&win->mutex_win_reusable);
+    _webui_mutex_destroy(&win->mutex_win_server_running);
+    _webui_mutex_destroy(&win->mutex_win_thread);
+
+    // Free window struct
+    _webui_free_mem((void*)win);
+}
+
+static void _webui_window_clear_clients(_webui_window_t* win) {
+
+    _webui_mutex_lock(&_webui.mutex_client);
+    for (size_t i = 0; i < WEBUI_MAX_IDS; i++) {
+        if ((_webui.clients[i] != NULL) && (_webui.clients_win_num[i] == win->num)) {
+            #ifdef WEBUI_LOG
+            _webui_log_debug("[Core]\t\t_webui_window_clear_clients([%zu]) -> Removing client #%zu\n", win->num, i);
+            #endif
+            _webui.clients[i] = NULL;
+            _webui.clients_win_num[i] = 0;
+            _webui_mutex_is_multi_client_token_valid(win, WEBUI_MUTEX_SET_FALSE, (int)i);
+        }
+    }
+    win->single_client = NULL;
+    win->clients_count = 0;
+    _webui_mutex_unlock(&_webui.mutex_client);
+
+    _webui_mutex_is_single_client_token_valid(win, WEBUI_MUTEX_SET_FALSE);
+}
+
+static void _webui_window_wait_for_tasks(_webui_window_t* win) {
+
+    // Wait for the in-flight event tasks of this window to retire, so no
+    // task is still using this window's CivetWeb connections storage when
+    // it gets freed by `mg_stop()`. The wait is bounded: a stuck task
+    // should not block the shutdown forever.
+
+    if (_webui_window_task_get(win) < 1)
+        return;
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_window_wait_for_tasks([%zu]) -> Waiting for %zu tasks\n",
+        win->num, _webui_window_task_get(win));
+    #endif
+
+    _webui_timer_t timer;
+    _webui_timer_start(&timer);
+    for (;;) {
+        _webui_sleep(1);
+        if (_webui_window_task_get(win) < 1)
+            break;
+        if (_webui_timer_is_end(&timer, 3000))
+            break;
+    }
 }
 
 static bool _webui_mutex_win_is_exit_now(_webui_window_t* win, int update) {
@@ -7110,6 +7774,34 @@ static bool _webui_browser_exist(_webui_window_t* win, size_t browser) {
     _webui_log_debug("[Core]\t\t_webui_browser_exist([%zu])\n", browser);
     #endif
 
+    // Non-supported browsers
+    if (browser == NoBrowser || browser == Safari || browser == Opera)
+        return false;
+
+    // Any supported web browser (Except WebView)
+    if (browser == AnyBrowser) {
+        static const size_t any_browsers[] = {
+            Chrome, Edge, Epic, Vivaldi, Brave, Firefox, Yandex, Chromium
+        };
+        for (size_t i = 0; i < (sizeof(any_browsers) / sizeof(any_browsers[0])); i++) {
+            if (_webui_browser_exist(win, any_browsers[i]))
+                return true;
+        }
+        return false;
+    }
+
+    // Any supported Chromium based web browser
+    if (browser == ChromiumBased) {
+        static const size_t chromium_browsers[] = {
+            Chrome, Edge, Epic, Vivaldi, Brave, Yandex, Chromium
+        };
+        for (size_t i = 0; i < (sizeof(chromium_browsers) / sizeof(chromium_browsers[0])); i++) {
+            if (_webui_browser_exist(win, chromium_browsers[i]))
+                return true;
+        }
+        return false;
+    }
+
     // Check if a web browser is installed on this machine
 
     if (browser == Chrome) {
@@ -7825,10 +8517,10 @@ static void _webui_clean(void) {
     _webui_log_debug("[Core]\t\t_webui_clean()\n");
     #endif
 
-    static bool cleaned = false;
-    if (cleaned)
+    // Nothing to clean. This also makes a second call harmless, while
+    // still allowing a new `_webui_init()` to start everything again.
+    if (!_webui.initialized)
         return;
-    cleaned = true;
 
     // Make sure app is stopped
     webui_exit();
@@ -7838,7 +8530,7 @@ static void _webui_clean(void) {
     // cleaning memory.
     for (size_t i = 0; i < 4; i++) {
         _webui_sleep(500);
-        if (_webui_servers_get() < 1) {
+        if (_webui_threads_get() < 1) {
             break; // No more server threads are running
         }
     }
@@ -7865,6 +8557,7 @@ static void _webui_clean(void) {
     _webui_mutex_destroy(&_webui.mutex_token);
     _webui_mutex_destroy(&_webui.mutex_js_run_id);
     _webui_mutex_destroy(&_webui.mutex_ws_process_number);
+    _webui_mutex_destroy(&_webui.mutex_allocator);
     _webui_condition_destroy(&_webui.condition_wait);
 
     _webui.initialized = false;
@@ -8032,7 +8725,9 @@ static int _webui_get_browser_args(_webui_window_t* win, size_t browser, char* b
                 c = WEBUI_SN_PRINTF_STATIC(buffer, len, " -P %s", win->profile_name);
             // Basic
             if (_webui_is_empty(win->custom_parameters)) {
-                c += WEBUI_SN_PRINTF_STATIC(buffer + c, len, " -purgecaches");
+                if (_webui.current_browser != Firefox) {
+                    c += WEBUI_SN_PRINTF_STATIC(buffer + c, len, " -purgecaches");
+                }
             }
             // Kiosk Mode
             if (win->kiosk_mode)
@@ -8457,6 +9152,115 @@ static bool _webui_browser_start(_webui_window_t* win, const char* address, size
     return true;
 }
 
+#ifdef _WIN32
+typedef LONG(NTAPI * _webui_nt_query_process_t)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+typedef struct {
+    USHORT Length;
+    USHORT MaximumLength;
+    PWSTR Buffer;
+}
+_webui_ntdll_string_t;
+
+static bool _webui_win32_find_pid_by_cmd(const char* needle, size_t* pid) {
+
+    // Find the first process having `needle` in its command line, by
+    // reading the command lines directly from the system. Asking WMI or
+    // PowerShell for the same list means spawning a shell, which costs
+    // about a second per call. Returns `false` when this is not
+    // supported, so the caller can use the slow way instead.
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_win32_find_pid_by_cmd([%s])\n", needle);
+    #endif
+
+    *pid = 0;
+    if (_webui_is_empty(needle))
+        return true;
+
+    // `ProcessCommandLineInformation` needs Windows 8.1 or later
+    static _webui_nt_query_process_t query_process = NULL;
+    static bool query_process_checked = false;
+    if (!query_process_checked) {
+        query_process_checked = true;
+        HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+        if (ntdll != NULL) {
+            query_process = (_webui_nt_query_process_t)(void*)
+                GetProcAddress(ntdll, "NtQueryInformationProcess");
+        }
+    }
+    if (query_process == NULL)
+        return false;
+
+    wchar_t* needle_wide = NULL;
+    if (!_webui_str_to_wide(needle, &needle_wide))
+        return false;
+
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        _webui_free_mem((void*)needle_wide);
+        return false;
+    }
+
+    bool supported = false;
+    PROCESSENTRY32 process;
+    process.dwSize = sizeof(PROCESSENTRY32);
+    if (Process32First(snapshot, &process)) {
+        unsigned char stack_buf[8192];
+        do {
+            if (process.th32ProcessID < 5)
+                continue;
+            HANDLE handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process.th32ProcessID);
+            if (handle == NULL)
+                continue;
+
+            unsigned char* buf = stack_buf;
+            unsigned char* heap_buf = NULL;
+            ULONG len = 0;
+            // 60 = ProcessCommandLineInformation
+            LONG status = query_process(handle, 60, buf, (ULONG)sizeof(stack_buf), &len);
+            if ((status == (LONG)0xC0000004L) && (len > 0) && (len < (16 * 1024 * 1024))) {
+                // The command line did not fit, retry with the needed size
+                heap_buf = (unsigned char*)malloc(len);
+                if (heap_buf != NULL) {
+                    buf = heap_buf;
+                    status = query_process(handle, 60, buf, len, &len);
+                }
+            }
+            if (status >= 0) {
+                supported = true;
+                _webui_ntdll_string_t* cmd = (_webui_ntdll_string_t*)buf;
+                if ((cmd->Buffer != NULL) && (cmd->Length > 0)) {
+                    // The returned string is not guaranteed to be null
+                    // terminated, so let's terminate our own copy
+                    size_t chars = (size_t)(cmd->Length / sizeof(wchar_t));
+                    wchar_t* line = (wchar_t*)malloc((chars + 1) * sizeof(wchar_t));
+                    if (line != NULL) {
+                        memcpy(line, cmd->Buffer, chars * sizeof(wchar_t));
+                        line[chars] = L'\0';
+                        if (wcsstr(line, needle_wide) != NULL)
+                            *pid = (size_t)process.th32ProcessID;
+                        free(line);
+                    }
+                }
+            }
+            if (heap_buf != NULL)
+                free(heap_buf);
+            CloseHandle(handle);
+        } while ((*pid == 0) && Process32Next(snapshot, &process));
+    }
+
+    CloseHandle(snapshot);
+    _webui_free_mem((void*)needle_wide);
+
+    #ifdef WEBUI_LOG
+    _webui_log_debug("[Core]\t\t_webui_win32_find_pid_by_cmd() -> PID %zu (supported: %d)\n", *pid, supported);
+    #endif
+
+    // Nothing readable at all means this way is not usable here
+    return supported;
+}
+#endif
+
 static size_t _webui_get_child_process_id(_webui_window_t* win) {
     if (win) {
         // Get PID
@@ -8469,8 +9273,18 @@ static size_t _webui_get_child_process_id(_webui_window_t* win) {
             #endif
         } else {
             // Web Browser Mode
-            // Filter process by WebUI's web server URL in process CLI
+            // Filter process by WebUI's web server URL in process CLI.
+            // No URL means no browser was ever launched for this window,
+            // and an empty filter would match unrelated processes.
+            if (_webui_is_empty(win->url))
+                return 0;
             #if defined(_WIN32)
+            // Read the command lines directly. This is the fast way, and
+            // when it works its result is final: a window whose browser
+            // already closed has no process to find.
+            size_t native_pid = 0;
+            if (_webui_win32_find_pid_by_cmd(win->url, &native_pid))
+                return native_pid;
             char* out = NULL;
             char cmd[1024] = {0};
             WEBUI_SN_PRINTF_STATIC(cmd, sizeof(cmd),
@@ -8759,7 +9573,9 @@ static bool _webui_show(_webui_window_t* win, struct mg_connection* client, cons
         bool empty_status = _webui_show_window(
             win, client, win->server_root_path, WEBUI_SHOW_FOLDER, browser
         );
-        webui_focus(win->num);
+        if(empty_status) {
+            webui_focus(win->num);
+        }
         return empty_status;
     }
 
@@ -8785,7 +9601,9 @@ static bool _webui_show(_webui_window_t* win, struct mg_connection* client, cons
             strstr(content_cpy, "<!Doctype")) {
         #ifdef WEBUI_LOG
         _webui_log_debug("[Core]\t\t_webui_show() -> Embedded HTML:\n");
-        _webui_log_debug("- - -[HTML]- - - - - - - - - -\n%s\n- - - - - - - - - - - - - - - -\n", content_cpy);
+        _webui_log_debug("---[ HTML ]--------\n");
+        _webui_log_debug(content_cpy);
+        _webui_log_debug("\n-----------------\n");
         #endif
         status = _webui_show_window(win, client, content_cpy, WEBUI_SHOW_HTML, browser);
     }
@@ -8816,7 +9634,9 @@ static bool _webui_show(_webui_window_t* win, struct mg_connection* client, cons
 
     // Bring the window to front after showing content
     if ((browser != NoBrowser) && (!win->hide)) {
-        webui_focus(win->num);
+        if(status) {
+            webui_focus(win->num);
+        }
     }
 
     return status;
@@ -9142,19 +9962,31 @@ static const char* _webui_get_local_ip(void) {
 
 static void _webui_start_server_thread(_webui_window_t* win) {
 
-    // Start the server thread of a window. The thread is counted in before it is
-    // created so that `wait()` cannot exit in the gap between this call and the
-    // thread actually starting.
+    // Start the persistent server thread of a window. The thread parks until
+    // a serve cycle is requested, and lives until the window is destroyed or
+    // the application exits. The thread is marked alive before it is created
+    // so a concurrent call cannot start a second thread for the same window.
 
-    _webui_servers_count(+1);
+    _webui_mutex_lock(&win->mutex_win_thread);
+    if (win->thread_running) {
+        _webui_mutex_unlock(&win->mutex_win_thread);
+        return;
+    }
+    win->thread_running = true;
+    _webui_mutex_unlock(&win->mutex_win_thread);
+
+    _webui_threads_count(+1);
 
     #ifdef _WIN32
     HANDLE thread = CreateThread(NULL, 0, _webui_server_thread, (void*)win, 0, NULL);
     win->server_thread = thread;
     if (thread != NULL)
         CloseHandle(thread);
-    else
-        _webui_servers_count(-1); // Thread creation failed
+    else {
+        // Thread creation failed
+        _webui_mutex_is_thread_running(win, WEBUI_MUTEX_SET_FALSE);
+        _webui_threads_count(-1);
+    }
     #else
     pthread_t thread;
     if (pthread_create(&thread, NULL, &_webui_server_thread, (void*)win) == 0) {
@@ -9162,7 +9994,9 @@ static void _webui_start_server_thread(_webui_window_t* win) {
         win->server_thread = thread;
     }
     else {
-        _webui_servers_count(-1); // Thread creation failed
+        // Thread creation failed
+        _webui_mutex_is_thread_running(win, WEBUI_MUTEX_SET_FALSE);
+        _webui_threads_count(-1);
     }
     #endif
 }
@@ -9236,42 +10070,10 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
     }
     #endif
 
-    // Status
-    bool is_window_connected = _webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS);
-    bool is_server_running = _webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS);
-    bool is_this_ui_reload = (is_window_connected && is_server_running); // User set new UI content on a running window
-    bool is_this_new_window = (!is_window_connected && !is_server_running); // New window
-    bool is_this_empty_server = (!is_window_connected && is_server_running); // Server exit, but not connected
-    bool is_last_was_no_browser = (win->current_browser == NoBrowser); // Server exit, but not connected, probably by `webui_get_url()`
-
-    // Old Server Cleanup
-    if (is_this_empty_server) {
-        if (!is_last_was_no_browser) {
-            // Wait for old server threads to stop if it's doing cleaning up
-            // in some OS like Linux + GTK WebView, the old server thread may
-            // not stop immediately after the old window is closed.
-            _webui_timer_t timer;
-            _webui_timer_start(&timer);
-            for (;;) {
-                #ifdef WEBUI_LOG
-                _webui_log_debug("[Core]\t\t_webui_show_window() -> Waiting for old server thread to stop...\n");
-                #endif
-                _webui_sleep(100);
-                if (!_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
-                    #ifdef WEBUI_LOG
-                    _webui_log_debug("[Core]\t\t_webui_show_window() -> Old server thread stopped.\n");
-                    #endif
-                    break;
-                }
-                if (_webui_timer_is_end(&timer, 1500)) {
-                    #ifdef WEBUI_LOG
-                    _webui_log_debug("[Core]\t\t_webui_show_window() -> Old server thread did not stop in time.\n");
-                    #endif
-                    break;
-                }
-            }
-        }
-    }
+    // A pending reload is about to change this window's port and URL.
+    // Let the server thread finish it first, so this show uses the
+    // new ones instead of pointing the UI at the old server.
+    _webui_window_wait_for_reload(win);
 
     // Initialization
     bool keep_user_index_file = false;
@@ -9312,22 +10114,17 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
     }
 
     // Get network ports
-    if (win->custom_server_port > 0) {
-        // Use user's custom port
-        win->server_port = win->custom_server_port;
-    }
-    else if (is_this_ui_reload || is_this_empty_server) {
-        // This is a UI reload or empty server.
-        // Let's reuse the same port if still valid
-        if (win->server_port == 0) {
-            // Port is not valid, get a new port
+    if (!_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
+        // The server is not listening yet. Once it's listening, the
+        // bound port stays the same for the entire server lifetime.
+        if (win->custom_server_port > 0) {
+            // Use user's custom port
+            win->server_port = win->custom_server_port;
+        }
+        else if (win->server_port == 0) {
+            // Get a new port
             win->server_port = _webui_get_free_port();
         }
-    }
-    else {
-        // This is a new window.
-        // Get a new port
-        win->server_port = _webui_get_free_port();
     }
 
     // Generate the server URL
@@ -9402,12 +10199,29 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
 
         // Start a new window
 
-        if (_webui.ui) {
-            // Prioritize the server thread if we
-            // knows that there is UIs running.
+        // Make sure this window's persistent server thread is alive
+        // (it may have failed to start at window creation), then
+        // request a serve cycle.
+        _webui_start_server_thread(win);
+        _webui_mutex_is_start_requested(win, WEBUI_MUTEX_SET_TRUE);
 
-            // New server thread
-            _webui_start_server_thread(win);
+        // Wait for the server to start listening before
+        // launching any web browser or WebView.
+        if (!_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
+            _webui_timer_t timer;
+            _webui_timer_start(&timer);
+            for (;;) {
+                _webui_sleep(1);
+                if (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS))
+                    break;
+                if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) ||
+                    _webui_timer_is_end(&timer, 3000)) {
+                    #ifdef WEBUI_LOG
+                    _webui_log_debug("[Core]\t\t_webui_show_window() -> Window server failed to start\n");
+                    #endif
+                    return false;
+                }
+            }
         }
 
         // Try first to open the UI in a browser if allowed.
@@ -9447,6 +10261,11 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
                 win->current_browser = NoBrowser;
                 runBrowser = true;
             }
+            // Remember if a web browser process was really launched for
+            // this window, so closing it does not look for a process
+            // that never existed
+            if (runBrowser && (browser != NoBrowser))
+                win->browser_launched = true;
         }
 
         // Try to open the UI in WebView if allowed and browser is failed.
@@ -9470,7 +10289,10 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
             }
         }
 
-        _webui_free_mem((void*)window_url);
+        // In folder mode `window_url` is `win->url` itself,
+        // it must stay valid for the window server lifetime
+        if (window_url != win->url)
+            _webui_free_mem((void*)window_url);
         if (browser != NoBrowser) {
             if (!runWebView && !runBrowser) {
                 // Browser and WebView both failed
@@ -9489,9 +10311,6 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
             // Let the wait() knows that this app
             // has atleast one window to wait for
             _webui.ui = true;
-
-            // New server thread
-            _webui_start_server_thread(win);
         }
 
     } else {
@@ -9520,7 +10339,10 @@ static bool _webui_show_window_impl(_webui_window_t* win, struct mg_connection* 
         }
 
         // Free
-        _webui_free_mem((void*)window_url);
+        // In folder mode `window_url` is `win->url` itself,
+        // it must stay valid for the window server lifetime
+        if (window_url != win->url)
+            _webui_free_mem((void*)window_url);
     }
 
     // Wait for window connection & token validation
@@ -9642,7 +10464,10 @@ static void _webui_window_event(
             _webui_log_debug("[Call]\n");
             #endif
             e.bind_id = events_cb_index;
+            _webui_window_t* previous_cb_win = _webui_callback_win;
+            _webui_callback_win = win;
             win->cb[events_cb_index](&e);
+            _webui_callback_win = previous_cb_win;
         }
     }
 
@@ -9658,7 +10483,10 @@ static void _webui_window_event(
                 _webui_log_debug("[Call]\n");
                 #endif
                 e.bind_id = cb_index;
+                _webui_window_t* previous_cb_win = _webui_callback_win;
+                _webui_callback_win = win;
                 win->cb[cb_index](&e);
+                _webui_callback_win = previous_cb_win;
             }
         }
     }
@@ -9748,12 +10576,14 @@ static void _webui_free_port(size_t port) {
     if (port == 0)
         return;
 
+    _webui_mutex_lock(&_webui.mutex_allocator);
     for (size_t i = 0; i < WEBUI_MAX_IDS; i++) {
         if (_webui.used_ports[i] == port) {
             _webui.used_ports[i] = 0;
             break;
         }
     }
+    _webui_mutex_unlock(&_webui.mutex_allocator);
 }
 
 static size_t _webui_get_free_port(void) {
@@ -9761,6 +10591,8 @@ static size_t _webui_get_free_port(void) {
     #ifdef WEBUI_LOG
     _webui_log_debug("[Core]\t\t_webui_get_free_port()\n");
     #endif
+
+    _webui_mutex_lock(&_webui.mutex_allocator);
 
     size_t port = (rand() % (WEBUI_MAX_PORT + 1 - WEBUI_MIN_PORT)) + WEBUI_MIN_PORT;
 
@@ -9796,6 +10628,7 @@ static size_t _webui_get_free_port(void) {
         }
     }
 
+    _webui_mutex_unlock(&_webui.mutex_allocator);
     return port;
 }
 
@@ -9833,6 +10666,7 @@ static void _webui_init(void) {
     _webui_mutex_init(&_webui.mutex_token);
     _webui_mutex_init(&_webui.mutex_js_run_id);
     _webui_mutex_init(&_webui.mutex_ws_process_number);
+    _webui_mutex_init(&_webui.mutex_allocator);
     _webui_condition_init(&_webui.condition_wait);
 
     // Random
@@ -9924,17 +10758,32 @@ static bool _webui_get_cb_index(_webui_window_t* win, const char* element, size_
 
 #ifdef WEBUI_LOG
 static void _webui_print_hex(const char* data, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        _webui_log_debug("0x%02X ", (unsigned char)* data);
-        data++;
+    if (len <= WEBUI_MAX_PRINT_LEN) {
+        for (size_t i = 0; i < len; i++) {
+            _webui_log_debug("0x%02X ", (unsigned char)* data);
+            data++;
+        }
+    } else {
+        for (size_t i = 0; i < WEBUI_CHUNK_PRINT_LEN; i++) {
+            _webui_log_debug("0x%02X ", (unsigned char)* data);
+            data++;
+        }
+
+        _webui_log_debug("... ");
+
+        data += len - WEBUI_CHUNK_PRINT_LEN;
+        for (size_t i = 0; i < WEBUI_CHUNK_PRINT_LEN; i++) {
+            _webui_log_debug("0x%02X ", (unsigned char)* data);
+            data++;
+        }
     }
 }
 static void _webui_print_ascii(const char* data, size_t len) {
     // This function is used to print the protocol binary packets. the packet 
     // may have ASCII and `0x00` inside text, as well as other non-ascii bytes
     
-    if (len <= 128) {
-        // Print all data if size is 128 or less
+    if (len <= WEBUI_MAX_PRINT_LEN) {
+        // Print all data if size is WEBUI_MAX_PRINT_LEN or less
         for (size_t i = 0; i < len; i++) {
             register unsigned char c = (unsigned char)* data;
             if (c < 32 || c > 126) {
@@ -9945,8 +10794,8 @@ static void _webui_print_ascii(const char* data, size_t len) {
             data++;
         }
     } else {
-        // Print first 64 bytes
-        for (size_t i = 0; i < 64; i++) {
+        // Print first WEBUI_CHUNK_PRINT_LEN bytes
+        for (size_t i = 0; i < WEBUI_CHUNK_PRINT_LEN; i++) {
             register unsigned char c = (unsigned char)* data;
             if (c < 32 || c > 126) {
                 _webui_log_debug("[0x%02X]", c);
@@ -9959,9 +10808,9 @@ static void _webui_print_ascii(const char* data, size_t len) {
         // Print ellipsis
         _webui_log_debug(" ... ");
         
-        // Print last 64 bytes
-        data = data + (len - 64);
-        for (size_t i = 0; i < 64; i++) {
+        // Print last WEBUI_CHUNK_PRINT_LEN bytes
+        data = data + (len - WEBUI_CHUNK_PRINT_LEN);
+        for (size_t i = 0; i < WEBUI_CHUNK_PRINT_LEN; i++) {
             register unsigned char c = (unsigned char)* data;
             if (c < 32 || c > 126) {
                 _webui_log_debug("[0x%02X]", c);
@@ -10765,102 +11614,246 @@ static void _webui_ws_close_handler(const struct mg_connection* client, void * _
     _webui_receive(win, (struct mg_connection*)client, WEBUI_WS_CLOSE, NULL, 0);
 }
 
+static void _webui_window_close_ui(_webui_window_t* win) {
+
+    // Close the UI of a window: terminate the web browser
+    // process, or stop the WebView thread. The window server
+    // itself is not touched.
+
+    // Kill Process
+    #ifndef WEBUI_LOG
+    if (!_webui.is_webview_mode && win->browser_launched) {
+        win->browser_launched = false;
+        if (_webui.current_browser != WEBUI_NATIVE_BROWSER) {
+            // Terminating the web browser window process
+            _webui_kill_pid(_webui_get_child_process_id(win));
+        }
+    }
+    #endif
+
+    // Clean WebView
+    if (win->webView) {
+        #ifdef _WIN32
+        if (win->webView->cpp_handle) {
+            _webui_win32_wv2_set_stop(win->webView->cpp_handle, true);
+            _webui_webview_update(win);
+        }
+        #else
+        win->webView->stop = true;
+        _webui_webview_update(win);
+        #endif
+    }
+}
+
 static WEBUI_THREAD_SERVER_START {
     #ifdef WEBUI_LOG
     _webui_log_debug("[Core]\t\t_webui_server_thread()\n");
     #endif
 
-    // Mutex
-    _webui_mutex_lock(&_webui.mutex_server_start);
-
     _webui_window_t* win = _webui_dereference_win_ptr(arg);
-    if (win == NULL || _webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS)) {
-        _webui_mutex_unlock(&_webui.mutex_server_start);
+    if (win == NULL) {
         // This thread was counted in by `_webui_start_server_thread()`
-        _webui_servers_count(-1);
+        _webui_threads_count(-1);
         WEBUI_THREAD_RETURN
     }
 
-    #ifdef WEBUI_LOG
-    _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> URL: [%s]\n", win->num, win->url);
-    #endif
-
     // Folder monitor thread
     bool monitor_created = false;
-    #ifdef _WIN32
-    HANDLE monitor_thread = NULL;
-    #else
-    pthread_t monitor_thread;
-    #endif
 
-    // Initialization
-    _webui_mutex_is_server_running(win, WEBUI_MUTEX_SET_TRUE);
-    if (_webui.startup_timeout < 1)
-        _webui.startup_timeout = 0;
-    if (_webui.startup_timeout > WEBUI_MAX_TIMEOUT)
-        _webui.startup_timeout = WEBUI_MAX_TIMEOUT;
-
-    // Public host access
-    char host[16] = {0};
-    if (!win->is_public)
-        // Private localhost access
-        WEBUI_STR_COPY_STATIC(host, sizeof(host), "127.0.0.1:");
-
-    #ifdef WEBUI_TLS
-    // HTTP Secure Port
-    char* server_port = (char*)_webui_malloc(64);
-    WEBUI_SN_PRINTF_DYN(server_port, 64, "%s%zus", host, win->server_port);
-    #else
-    // HTTP Port
-    char* server_port = (char*)_webui_malloc(64);
-    WEBUI_SN_PRINTF_DYN(server_port, 64, "%s%zu", host, win->server_port);
-    #endif
-
-    // Server Options
-    const char* http_options[] = {
-        // HTTP
-        "listening_ports", server_port,
-        "document_root", win->server_root_path,
-        "access_control_allow_headers", "*",
-        "access_control_allow_methods", "*",
-        "access_control_allow_origin", "*",
-        #ifdef WEBUI_TLS
-        "authentication_domain", "localhost",
-        "enable_auth_domain_check", "no",
-        "ssl_protocol_version", "4",
-        "ssl_cipher_list", "ECDH+AESGCM+AES256:!aNULL:!MD5:!DSS",
-        "strict_transport_security_max_age", WEBUI_SSL_EXPIRE_STR,
-        #endif
-        // WS
-        "websocket_timeout_ms", "3600000",
-        "enable_websocket_ping_pong", "yes",
-        NULL, NULL
-    };
-
-    // Server Settings
-    struct mg_callbacks http_callbacks;
+    // Web server of this window. It's started at the first serve cycle,
+    // and stays listening until this thread exits.
     struct mg_context * http_ctx = NULL;
-    memset(&http_callbacks, 0, sizeof(http_callbacks));
-    #ifdef WEBUI_TLS
-    http_callbacks.init_ssl = _webui_tls_initialization;
-    #endif
-    #ifdef WEBUI_LOG
-    http_callbacks.log_message = _webui_http_log;
-    #endif
+    char* server_port = NULL;
+    bool resume_after_reload = false;
 
-    // Start Server
-    http_ctx = mg_start(&http_callbacks, 0, http_options);
-    mg_set_request_handler(http_ctx, "/", _webui_http_handler, (void*)win);
+    // This thread is persistent: it parks until `webui_show()` requests a
+    // serve cycle, serves until the window gets closed, then parks again.
+    // It exits only when the window is destroyed or the app is exiting.
+    for (;;) {
 
-    if (http_ctx) {
+        // Park: wait for a serve request, a client
+        // re-connection, or a reload request
+        if (_webui_window_thread_end(win))
+            break;
 
-        mg_set_websocket_handler(
-            http_ctx, "/_webui_ws_connect", _webui_ws_connect_handler, _webui_ws_ready_handler,
-            _webui_ws_data_handler, _webui_ws_close_handler, (void*)win
-        );
+        // Reload: restart the web server of this window using the
+        // current settings. Requested by setters like `webui_set_port()`.
+        // The reload request also ended the serve cycle, so we get here
+        // immediately. The reload flag stays set until the server is
+        // listening again, so `webui_show()` waits for the new port.
+        bool rebind_only = false;
+        if (_webui_mutex_is_reload_requested(win, WEBUI_MUTEX_GET_STATUS)) {
 
-        // Mutex
-        _webui_mutex_unlock(&_webui.mutex_server_start);
+            if (http_ctx != NULL) {
+
+                #ifdef WEBUI_LOG
+                _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> Reloading server...\n", win->num);
+                #endif
+
+                // Any remaining client is bound to the old server
+                _webui_mutex_is_connected(win, WEBUI_MUTEX_SET_FALSE);
+
+                // Wait for this window's in-flight event tasks, then
+                // stop the server services
+                _webui_window_wait_for_tasks(win);
+                mg_stop(http_ctx);
+                http_ctx = NULL;
+                _webui_mutex_is_server_running(win, WEBUI_MUTEX_SET_FALSE);
+
+                // The clients of the old server are gone with it
+                _webui_window_clear_clients(win);
+
+                // Apply the port settings
+                size_t new_port = (win->custom_server_port > 0 ? win->custom_server_port : win->server_port);
+                if (new_port != win->server_port) {
+                    _webui_free_port(win->server_port);
+                    win->server_port = new_port;
+                }
+                _webui_free_mem((void*)server_port);
+                server_port = NULL;
+
+                // Regenerate the URL
+                char* old_url = win->url;
+                win->url = (char*)_webui_malloc(32); // [http][domain][port]
+                WEBUI_SN_PRINTF_DYN(win->url, 32, WEBUI_HTTP_PROTOCOL "localhost:%zu", win->server_port);
+                _webui_free_mem((void*)old_url);
+
+                // Restart listening right away, then park again
+                rebind_only = true;
+            }
+            else {
+                // Nothing to reload, the server was never started
+                _webui_mutex_is_reload_requested(win, WEBUI_MUTEX_SET_FALSE);
+            }
+        }
+
+        if (!rebind_only) {
+            if (!_webui_mutex_is_start_requested(win, WEBUI_MUTEX_GET_STATUS) &&
+                !(http_ctx && _webui_mutex_is_connected(win, WEBUI_MUTEX_GET_STATUS))) {
+                _webui_sleep(1);
+                continue;
+            }
+            _webui_mutex_is_start_requested(win, WEBUI_MUTEX_SET_FALSE);
+        }
+
+        // Initialization
+        if (_webui.startup_timeout < 1)
+            _webui.startup_timeout = 0;
+        if (_webui.startup_timeout > WEBUI_MAX_TIMEOUT)
+            _webui.startup_timeout = WEBUI_MAX_TIMEOUT;
+
+        if (http_ctx == NULL) {
+
+            // First serve cycle. Let's start the web server
+
+            // Mutex
+            _webui_mutex_lock(&_webui.mutex_server_start);
+
+            // Public host access
+            char host[16] = {0};
+            if (!win->is_public)
+                // Private localhost access
+                WEBUI_STR_COPY_STATIC(host, sizeof(host), "127.0.0.1:");
+
+            #ifdef WEBUI_TLS
+            // HTTP Secure Port
+            server_port = (char*)_webui_malloc(64);
+            WEBUI_SN_PRINTF_DYN(server_port, 64, "%s%zus", host, win->server_port);
+            #else
+            // HTTP Port
+            server_port = (char*)_webui_malloc(64);
+            WEBUI_SN_PRINTF_DYN(server_port, 64, "%s%zu", host, win->server_port);
+            #endif
+
+            // Server Options
+            const char* http_options[] = {
+                // HTTP
+                "listening_ports", server_port,
+                "document_root", win->server_root_path,
+                "access_control_allow_headers", "*",
+                "access_control_allow_methods", "*",
+                "access_control_allow_origin", "*",
+                #ifdef WEBUI_TLS
+                "authentication_domain", "localhost",
+                "enable_auth_domain_check", "no",
+                "ssl_protocol_version", "4",
+                "ssl_cipher_list", "ECDH+AESGCM+AES256:!aNULL:!MD5:!DSS",
+                "strict_transport_security_max_age", WEBUI_SSL_EXPIRE_STR,
+                #endif
+                // WS
+                "websocket_timeout_ms", "3600000",
+                "enable_websocket_ping_pong", "yes",
+                NULL, NULL
+            };
+
+            // Server Settings
+            struct mg_callbacks http_callbacks;
+            memset(&http_callbacks, 0, sizeof(http_callbacks));
+            #ifdef WEBUI_TLS
+            http_callbacks.init_ssl = _webui_tls_initialization;
+            #endif
+            #ifdef WEBUI_LOG
+            http_callbacks.log_message = _webui_http_log;
+            #endif
+
+            // Start Server
+            http_ctx = mg_start(&http_callbacks, 0, http_options);
+
+            if (http_ctx == NULL) {
+
+                #ifdef WEBUI_LOG
+                _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> Listening failed.\n", win->num);
+                #endif
+
+                // Mutex
+                _webui_mutex_unlock(&_webui.mutex_server_start);
+
+                // Free the port, so the next `webui_show()`
+                // call can try again with a new free port.
+                _webui_free_port(win->server_port);
+                win->server_port = 0;
+                _webui_free_mem((void*)server_port);
+                server_port = NULL;
+
+                // A failed reload is still a finished reload
+                _webui_mutex_is_reload_requested(win, WEBUI_MUTEX_SET_FALSE);
+                continue;
+            }
+
+            mg_set_request_handler(http_ctx, "/", _webui_http_handler, (void*)win);
+            mg_set_websocket_handler(
+                http_ctx, "/_webui_ws_connect", _webui_ws_connect_handler, _webui_ws_ready_handler,
+                _webui_ws_data_handler, _webui_ws_close_handler, (void*)win
+            );
+
+            // The server of this window is now up
+            _webui_mutex_is_server_running(win, WEBUI_MUTEX_SET_TRUE);
+
+            // Mutex
+            _webui_mutex_unlock(&_webui.mutex_server_start);
+
+            #ifdef WEBUI_LOG
+            _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> URL: [%s]\n", win->num, win->url);
+            #endif
+        }
+
+        if (rebind_only) {
+
+            // The reload is done. The server is listening
+            // again, using the new settings
+            _webui_mutex_is_reload_requested(win, WEBUI_MUTEX_SET_FALSE);
+
+            // Resume serving if this window was serving when the reload
+            // was requested, so it stays active for `webui_wait()`
+            if (resume_after_reload) {
+                resume_after_reload = false;
+                _webui_mutex_is_start_requested(win, WEBUI_MUTEX_SET_TRUE);
+            }
+            continue;
+        }
+
+        // This window is now active. `wait()` waits for it
+        _webui_servers_count(+1);
 
         if (_webui.startup_timeout > 0) {
 
@@ -10899,7 +11892,7 @@ static WEBUI_THREAD_SERVER_START {
                         _webui_sleep(1);
 
                         // Stop if we get exit signal
-                        if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_GET_STATUS)) {
+                        if (_webui_window_cycle_end(win)) {
                             stop = true;
                             break;
                         }
@@ -10936,7 +11929,7 @@ static WEBUI_THREAD_SERVER_START {
                             for (;;) {
 
                                 // Stop if we get exit signal
-                                if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_GET_STATUS)) {
+                                if (_webui_window_cycle_end(win)) {
                                     stop = true;
                                     break;
                                 }
@@ -10971,13 +11964,20 @@ static WEBUI_THREAD_SERVER_START {
                     // Folder monitor thread
                     if (_webui.config.folder_monitor && !monitor_created) {
                         monitor_created = true;
+                        _webui_mutex_is_monitor_stop(win, WEBUI_MUTEX_SET_FALSE);
+                        _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_TRUE);
                         #ifdef _WIN32
-                        monitor_thread = CreateThread(NULL, 0, _webui_folder_monitor_thread, (void*)win, 0, NULL);
+                        HANDLE monitor_thread = CreateThread(NULL, 0, _webui_folder_monitor_thread, (void*)win, 0, NULL);
                         if (monitor_thread != NULL)
                             CloseHandle(monitor_thread);
+                        else
+                            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
                         #else
-                        pthread_create(&monitor_thread, NULL, &_webui_folder_monitor_thread, (void*)win);
-                        pthread_detach(monitor_thread);
+                        pthread_t monitor_thread;
+                        if (pthread_create(&monitor_thread, NULL, &_webui_folder_monitor_thread, (void*)win) == 0)
+                            pthread_detach(monitor_thread);
+                        else
+                            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
                         #endif
                     }
 
@@ -10988,7 +11988,7 @@ static WEBUI_THREAD_SERVER_START {
                         _webui_sleep(1);
 
                         // Exit signal
-                        if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_GET_STATUS)) {
+                        if (_webui_window_cycle_end(win)) {
                             stop = true;
                             break;
                         }
@@ -11024,7 +12024,7 @@ static WEBUI_THREAD_SERVER_START {
                                     for (;;) {
 
                                         // Stop if we get exit signal
-                                        if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_GET_STATUS)) {
+                                        if (_webui_window_cycle_end(win)) {
                                             stop = true;
                                             break;
                                         }
@@ -11076,31 +12076,59 @@ static WEBUI_THREAD_SERVER_START {
             // Folder monitor thread
             if (_webui.config.folder_monitor && !monitor_created) {
                 monitor_created = true;
+                _webui_mutex_is_monitor_stop(win, WEBUI_MUTEX_SET_FALSE);
+                _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_TRUE);
                 #ifdef _WIN32
-                monitor_thread = CreateThread(NULL, 0, _webui_folder_monitor_thread, (void*)win, 0, NULL);
+                HANDLE monitor_thread = CreateThread(NULL, 0, _webui_folder_monitor_thread, (void*)win, 0, NULL);
                 if (monitor_thread != NULL)
                     CloseHandle(monitor_thread);
+                else
+                    _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
                 #else
-                pthread_create(&monitor_thread, NULL, &_webui_folder_monitor_thread, (void*)win);
-                pthread_detach(monitor_thread);
+                pthread_t monitor_thread;
+                if (pthread_create(&monitor_thread, NULL, &_webui_folder_monitor_thread, (void*)win) == 0)
+                    pthread_detach(monitor_thread);
+                else
+                    _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
                 #endif
             }
 
             // Wait forever
             for (;;) {
                 _webui_sleep(1);
-                if (_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS) || _webui_mutex_win_is_exit_now(win, WEBUI_MUTEX_GET_STATUS))
+                if (_webui_window_cycle_end(win))
                     break;
             }
         }
-    } else {
+        // The serve cycle ended: the window got closed by the user, the
+        // connection timed out, an exit is requested, or the server is
+        // being reloaded. Let's make this window inactive. A serve
+        // request that arrived during this cycle is stale now, so it
+        // gets dropped. A re-show in progress is still safe: its client
+        // re-connection starts a new serve cycle.
+        bool ending_for_reload = _webui_mutex_is_reload_requested(win, WEBUI_MUTEX_GET_STATUS);
+        _webui_mutex_is_start_requested(win, WEBUI_MUTEX_SET_FALSE);
+        _webui_mutex_is_connected(win, WEBUI_MUTEX_SET_FALSE);
 
-        #ifdef WEBUI_LOG
-        if (!http_ctx) _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> Listening failed.\n", win->num);
-        #endif
+        // A reload keeps the UI open: the clients were told to move to
+        // the new address, and they are waiting for it to answer.
+        // Serving resumes once the server is listening again.
+        if (ending_for_reload)
+            resume_after_reload = true;
+        else
+            _webui_window_close_ui(win);
 
-        // Mutex
-        _webui_mutex_unlock(&_webui.mutex_server_start);
+        // Make window reusable, so user can
+        // call `webui_show()` again if needed.
+        _webui_make_window_reusable(win);
+
+        // Let the main wait() know that this window is closed. This
+        // breaks the main loop when nothing else is left running (no
+        // other active window, and no `webui_show()` call in progress).
+        _webui_servers_count(-1);
+
+        // Park again. The server keeps listening, so this window can
+        // be shown again at any time, using the same URL and port.
     }
 
     #ifdef WEBUI_LOG
@@ -11109,38 +12137,34 @@ static WEBUI_THREAD_SERVER_START {
 
     _webui_mutex_is_connected(win, WEBUI_MUTEX_SET_FALSE);
 
-    // Kill Process
-    #ifndef WEBUI_LOG
-    if (!_webui.is_webview_mode) {
-        if (_webui.current_browser != WEBUI_NATIVE_BROWSER) {
-            // Terminating the web browser window process
-            _webui_kill_pid(_webui_get_child_process_id(win));
-        }
-    }
-    #endif
+    // Close the UI if any
+    _webui_window_close_ui(win);
 
-    // Clean WebView
-    if (win->webView) {
-        #ifdef _WIN32
-        if (win->webView->cpp_handle) {
-            _webui_win32_wv2_set_stop(win->webView->cpp_handle, true);
-            _webui_webview_update(win);
-        }
-        #else
-        win->webView->stop = true;
-        _webui_webview_update(win);
-        #endif
-    }
+    // Wait for this window's in-flight event tasks to retire before
+    // `mg_stop()` frees the connections storage they may be using
+    _webui_window_wait_for_tasks(win);
 
     // Stop server services
-    mg_stop(http_ctx);
-
-    // Free Port
-    _webui_free_port(win->server_port);
-    _webui_free_mem((void*)server_port);
+    if (http_ctx != NULL)
+        mg_stop(http_ctx);
 
     // Mutex
     _webui_mutex_is_server_running(win, WEBUI_MUTEX_SET_FALSE);
+
+    // The clients of this window are gone with its server
+    _webui_window_clear_clients(win);
+
+    // Free Port
+    if (server_port != NULL) {
+        _webui_free_port(win->server_port);
+        _webui_free_mem((void*)server_port);
+    }
+    else if (win->server_port > 0) {
+        // A port was reserved by `webui_show()`
+        // but this server never used it
+        _webui_free_port(win->server_port);
+    }
+    win->server_port = 0;
 
     #ifdef WEBUI_LOG
     _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> Server stopped.\n",
@@ -11151,24 +12175,53 @@ static WEBUI_THREAD_SERVER_START {
     // call `webui_show()` again if needed.
     _webui_make_window_reusable(win);
 
-    // Let the main wait() know that this server thread is finished. This
-    // breaks the main loop when nothing else is left running (no other
-    // server thread, and no `webui_show()` call in progress).
-    _webui_servers_count(-1);
+    // Stop the folder monitor thread, and wait for it
+    _webui_window_stop_monitor(win, monitor_created);
 
-    // Clean monitor thread
-    if (_webui.config.folder_monitor && monitor_created) {
-        #ifdef WEBUI_LOG
-        _webui_log_debug("[Core]\t\t_webui_server_thread([%zu]) -> Killing folder monitor thread\n", win->num);
-        #endif
-        #ifdef _WIN32
-        TerminateThread(monitor_thread, 0);
-        CloseHandle(monitor_thread);
-        #else
-        if (monitor_thread) {
-            pthread_cancel(monitor_thread);
+    // The WebView was asked to stop by `_webui_window_close_ui()`,
+    // wait for its thread to finish before this window can be freed
+    _webui_window_wait_for_webview(win);
+
+    // Retire any event task that started while stopping
+    _webui_window_wait_for_tasks(win);
+
+    // This window server thread is finished. Reading the destroy
+    // request in the same locked step is what makes the reclaim
+    // single-owner: a `webui_destroy()` that arrives later sees no
+    // running thread, and reclaims the window itself.
+    // Anything that could still be using this window keeps it alive: a
+    // task that did not retire in time, a folder monitor that did not
+    // stop in time, or a WebView with its own worker threads. Such a
+    // window is left to `webui_clean()`. Everything needed after this
+    // point is read here, because once the lock is released a
+    // concurrent `webui_destroy()` may reclaim this window instead.
+    _webui_mutex_lock(&win->mutex_win_thread);
+    win->thread_running = false;
+    size_t win_num = win->num;
+    bool reclaim = (win->destroy_requested && (win->tasks < 1) &&
+        !win->monitor_running && !win->webview_running && (win->webView == NULL));
+    _webui_mutex_unlock(&win->mutex_win_thread);
+
+    _webui_threads_count(-1);
+
+    if (reclaim) {
+
+        // Unregister first, so nothing can reach this window anymore,
+        // then free it. `webui_destroy()` polls the registry to know
+        // when the window is gone.
+        _webui_mutex_lock(&_webui.mutex_allocator);
+        if (_webui.wins[win_num] == win) {
+            _webui.wins[win_num] = NULL;
+            _webui.wins_reserved[win_num] = false;
         }
-        #endif
+        else {
+            // Another caller already took this window over
+            reclaim = false;
+        }
+        _webui_mutex_unlock(&_webui.mutex_allocator);
+
+        if (reclaim)
+            _webui_window_free(win);
     }
 
     WEBUI_THREAD_RETURN
@@ -11379,7 +12432,9 @@ static void _webui_receive(_webui_window_t* win, struct mg_connection* client,
     // }
 
     // -- New Method --
-    // Process the packet always in a new thread
+    // Process the packet always in a new thread. The task is counted in
+    // before the thread is created, so the server thread can wait for it
+    // before freeing the connections storage.
     _webui_recv_arg_t* arg = (_webui_recv_arg_t* ) _webui_malloc(sizeof(_webui_recv_arg_t));
     arg->win = win;
     arg->ptr = arg_ptr;
@@ -11388,14 +12443,19 @@ static void _webui_receive(_webui_window_t* win, struct mg_connection* client,
     arg->event_type = event_type;
     arg->client = client;
     arg->connection_id = connection_id;
+    _webui_window_task_count(win, +1);
     #ifdef _WIN32
     HANDLE thread = CreateThread(NULL, 0, _webui_ws_process_thread, (void*)arg, 0, NULL);
     if (thread != NULL)
         CloseHandle(thread);
+    else
+        _webui_window_task_count(win, -1); // Thread creation failed
     #else
     pthread_t thread;
-    pthread_create(&thread, NULL, &_webui_ws_process_thread, (void*)arg);
-    pthread_detach(thread);
+    if (pthread_create(&thread, NULL, &_webui_ws_process_thread, (void*)arg) == 0)
+        pthread_detach(thread);
+    else
+        _webui_window_task_count(win, -1); // Thread creation failed
     #endif
 }
 
@@ -11873,7 +12933,10 @@ static void _webui_ws_process(
                                 );
                                 #endif
                                 e.bind_id = cb_index;
+                                _webui_window_t* previous_cb_win = _webui_callback_win;
+                                _webui_callback_win = win;
                                 win->cb[cb_index](&e);
+                                _webui_callback_win = previous_cb_win;
 
                                 // Async response wait
                                 if (_webui.config.asynchronous_response) {
@@ -11963,11 +13026,6 @@ static void _webui_ws_process(
                         size_t connection_id = 0;
                         if (_webui_connection_get_id(win, client, &connection_id)) {
 
-                            if (win->single_client == client) {
-                                _webui_mutex_is_single_client_token_valid(win, WEBUI_MUTEX_SET_TRUE);
-                            }
-                            _webui_mutex_is_multi_client_token_valid(win, WEBUI_MUTEX_SET_TRUE, connection_id);
-
                             #ifdef WEBUI_LOG
                             _webui_log_debug(
                                 "[Core] [WS #%zu]\t_webui_ws_process() -> Token accepted. Sending bind list\n",
@@ -12020,6 +13078,15 @@ static void _webui_ws_process(
 
                             // Free
                             _webui_free_mem((void*)csv);
+
+                            // The token is marked valid only after the bind list is on the wire.
+                            // `_webui_show_window()` waits for this flag, so any script the backend
+                            // sends right after `webui_show()` returns is guaranteed to reach a
+                            // bridge that already knows its bind list.
+                            _webui_mutex_is_multi_client_token_valid(win, WEBUI_MUTEX_SET_TRUE, connection_id);
+                            if (win->single_client == client) {
+                                _webui_mutex_is_single_client_token_valid(win, WEBUI_MUTEX_SET_TRUE);
+                            }
 
                             // New Event
                             if (win->has_all_events) {
@@ -12222,6 +13289,9 @@ static WEBUI_THREAD_RECEIVE {
 
     // Process
     _webui_ws_process(arg->win, arg->client, arg->connection_id, arg->ptr, arg->len, arg->recvNum, arg->event_type);
+
+    // This task is done
+    _webui_window_task_count(arg->win, -1);
 
     // Free
     _webui_free_mem((void*)arg->ptr);
@@ -12717,7 +13787,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
                 if (win) {
                     bool can_close = true;
                     if (win->close_handler_wv != NULL) {
+                        _webui_window_t* previous_cb_win = _webui_callback_win;
+                        _webui_callback_win = win;
                         can_close = win->close_handler_wv(win->num);
+                        _webui_callback_win = previous_cb_win;
                         #ifdef WEBUI_LOG
                         _webui_log_debug("[Core]\t\tClose handler installed for %zu, result = %d\n", win->num, can_close);
                         #endif
@@ -12844,6 +13917,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
         _webui_webview_update(win);
 
         // Win32 WebView thread
+        _webui_mutex_is_webview_running(win, WEBUI_MUTEX_SET_TRUE);
         #ifdef _WIN32
         HANDLE thread = CreateThread(NULL, 0, _webui_webview_thread, (void*)win, 0, NULL);
         if (thread != NULL)
@@ -13178,6 +14252,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
         _webui_log_debug("[Core]\t\t[Thread .] _webui_webview_thread() -> End\n");
         #endif
 
+        // Let the window server thread know this WebView is finished
+        _webui_mutex_is_webview_running(win, WEBUI_MUTEX_SET_FALSE);
+
         WEBUI_THREAD_RETURN
     };
 
@@ -13298,7 +14375,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
             _webui_window_t* win = _webui_dereference_win_ptr(arg);
             if (win) {
                 if (win->close_handler_wv) {
+                    _webui_window_t* previous_cb_win = _webui_callback_win;
+                    _webui_callback_win = win;
                     bool can_close = win->close_handler_wv(win->num);
+                    _webui_callback_win = previous_cb_win;
                     #ifdef WEBUI_LOG
                     _webui_log_debug("[Core]\t\t_webui_wv_event_on_close() -> can_close = %d\n", can_close);
                     #endif
@@ -13646,6 +14726,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
         // processed in one single thread for each window.
 
         // Linux WebView thread
+        _webui_mutex_is_webview_running(win, WEBUI_MUTEX_SET_TRUE);
         #ifdef _WIN32
         HANDLE thread = CreateThread(NULL, 0, _webui_webview_thread, (void*)win, 0, NULL);
         if (thread != NULL)
@@ -14130,6 +15211,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
         _webui_log_debug("[Core]\t\t[Thread .] _webui_webview_thread() -> End\n");
         #endif
 
+
+        // Let the window server thread know this WebView is finished
+        _webui_mutex_is_webview_running(win, WEBUI_MUTEX_SET_FALSE);
         WEBUI_THREAD_RETURN
     }
 #else
@@ -14303,6 +15387,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
         _webui_webview_update(win);
 
         // macOS WebView thread
+        _webui_mutex_is_webview_running(win, WEBUI_MUTEX_SET_TRUE);
         #ifdef _WIN32
         HANDLE thread = CreateThread(NULL, 0, _webui_webview_thread, (void*)win, 0, NULL);
         if (thread != NULL)
@@ -14410,6 +15495,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
         _webui_log_debug("[Core]\t\t[Thread .] _webui_webview_thread() -> End\n");
         #endif
 
+
+        // Let the window server thread know this WebView is finished
+        _webui_mutex_is_webview_running(win, WEBUI_MUTEX_SET_FALSE);
         WEBUI_THREAD_RETURN
     }
 #endif
@@ -14420,67 +15508,67 @@ static WEBUI_THREAD_MONITOR {
     _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread()\n");
     #endif
 
-    _webui_window_t* win = _webui_dereference_win_ptr(arg);
+    // The server thread of this window created this thread, and waits
+    // for it before the window can be reclaimed, so the window stays
+    // valid for as long as this thread runs.
+    _webui_window_t* win = (_webui_window_t*)arg;
     if (win == NULL) {
         WEBUI_THREAD_RETURN
     }
 
-    // Stop if a lower window already monitoring the same folder
-    // Loop trough all windows
-    for (size_t i = 1; i < WEBUI_MAX_IDS; i++) {
-        if ((_webui.wins[i] != NULL) && (_webui.wins[i] != win) && (i < win->num)) {
-            WEBUI_THREAD_RETURN
-        }
-    }
+    // Every window monitors its own root folder. Two windows may share
+    // the same folder, and both still need their own monitor, because a
+    // monitor only reloads the clients of its own window.
 
     const char* js = "location.reload();";
     size_t js_len = _webui_strlen(js);
 
     #ifdef _WIN32
         // Windows
-        HANDLE hDir = CreateFile(
-            win->server_root_path, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-            NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL
+        // A change notification is used instead of `ReadDirectoryChangesW()`
+        // because it can be waited on with a timeout, which lets this thread
+        // notice a stop request instead of being killed while blocked.
+        HANDLE hDir = FindFirstChangeNotification(
+            win->server_root_path, TRUE,
+            FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_ATTRIBUTES |
+            FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE
         );
-        if (hDir == INVALID_HANDLE_VALUE) {
+        if ((hDir == INVALID_HANDLE_VALUE) || (hDir == NULL)) {
             #ifdef WEBUI_LOG
             _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Failed to open folder: %s\n",
                 win->server_root_path
             );
             #endif
+            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
             WEBUI_THREAD_RETURN
         }
         #ifdef WEBUI_LOG
         _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Monitoring [%s]\n", win->server_root_path);
         #endif
-        char buffer[1024];
-        DWORD bytesReturned;
-        while ((!_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS)) &&
-               (_webui_mutex_is_server_running(win, WEBUI_MUTEX_GET_STATUS))) {
-            if (ReadDirectoryChangesW(
-                    hDir, buffer, sizeof(buffer), TRUE,
-                    FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_ATTRIBUTES |
-                    FILE_NOTIFY_CHANGE_SIZE | FILE_NOTIFY_CHANGE_LAST_WRITE, &bytesReturned, NULL, NULL
-                ))
-            {
-                #ifdef WEBUI_LOG
-                _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Folder updated\n");
-                #endif
-                // Loop trough all connected clients in this window
-                for (size_t i = 0; i < WEBUI_MAX_IDS; i++) {
-                    if ((_webui.clients[i] != NULL) && (_webui.clients_win_num[i] == win->num) && 
-                        (_webui_mutex_is_multi_client_token_valid(win, WEBUI_MUTEX_GET_STATUS, i))) {
-                        _webui_send_client(win, _webui.clients[i], 0, WEBUI_CMD_JS_QUICK, js, js_len, false);
-                    }
-                }
-            } else {
+        while (!_webui_monitor_should_stop(win)) {
+            DWORD wait_status = WaitForSingleObject(hDir, 500);
+            if (wait_status == WAIT_TIMEOUT)
+                continue;
+            if (wait_status != WAIT_OBJECT_0) {
                 #ifdef WEBUI_LOG
                 _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Failed to read folder changes\n");
                 #endif
                 break;
             }
+            #ifdef WEBUI_LOG
+            _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Folder updated\n");
+            #endif
+            // Loop trough all connected clients in this window
+            for (size_t i = 0; i < WEBUI_MAX_IDS; i++) {
+                if ((_webui.clients[i] != NULL) && (_webui.clients_win_num[i] == win->num) &&
+                    (_webui_mutex_is_multi_client_token_valid(win, WEBUI_MUTEX_GET_STATUS, i))) {
+                    _webui_send_client(win, _webui.clients[i], 0, WEBUI_CMD_JS_QUICK, js, js_len, false);
+                }
+            }
+            if (!FindNextChangeNotification(hDir))
+                break;
         }
-        CloseHandle(hDir);
+        FindCloseChangeNotification(hDir);
     #elif __linux__
         // Linux
         int fd = inotify_init();
@@ -14488,6 +15576,7 @@ static WEBUI_THREAD_MONITOR {
             #ifdef WEBUI_LOG
             _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> inotify_init error\n");
             #endif
+            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
             WEBUI_THREAD_RETURN
         }
         int wd = inotify_add_watch(fd, win->server_root_path, IN_MODIFY | IN_CREATE | IN_DELETE);
@@ -14496,13 +15585,31 @@ static WEBUI_THREAD_MONITOR {
             _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> inotify_add_watch error\n");
             #endif
             close(fd);
+            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
             WEBUI_THREAD_RETURN
         }
         #ifdef WEBUI_LOG
         _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Monitoring [%s]\n", win->server_root_path);
         #endif
         char buffer[1024];
-        while (!_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS)) {
+        // The descriptor is polled with a timeout, so a stop request is
+        // noticed instead of blocking forever in `read()`
+        struct pollfd monitor_poll;
+        monitor_poll.fd = fd;
+        monitor_poll.events = POLLIN;
+        while (!_webui_monitor_should_stop(win)) {
+            monitor_poll.revents = 0;
+            int ready = poll(&monitor_poll, 1, 500);
+            if (ready == 0)
+                continue;
+            if (ready < 0) {
+                if (errno == EINTR)
+                    continue;
+                #ifdef WEBUI_LOG
+                _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> poll error\n");
+                #endif
+                break;
+            }
             int length = read(fd, buffer, sizeof(buffer));
             if (length < 0) {
                 #ifdef WEBUI_LOG
@@ -14539,6 +15646,7 @@ static WEBUI_THREAD_MONITOR {
             #ifdef WEBUI_LOG
             _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> kqueue error\n");
             #endif
+            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
             WEBUI_THREAD_RETURN
         }
         int fd = open(win->server_root_path, O_RDONLY);
@@ -14547,6 +15655,7 @@ static WEBUI_THREAD_MONITOR {
             _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> open error\n");
             #endif
             close(kq);
+            _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
             WEBUI_THREAD_RETURN
         }
         #ifdef WEBUI_LOG
@@ -14554,10 +15663,19 @@ static WEBUI_THREAD_MONITOR {
         #endif
         struct kevent change;
         EV_SET(&change, fd, EVFILT_VNODE, EV_ADD | EV_ENABLE | EV_ONESHOT, NOTE_WRITE, 0, NULL);
-        while (!_webui_mutex_app_is_exit_now(WEBUI_MUTEX_GET_STATUS)) {
+        // The event wait uses a timeout, so a stop request is
+        // noticed instead of blocking forever in `kevent()`
+        struct timespec monitor_timeout;
+        monitor_timeout.tv_sec = 0;
+        monitor_timeout.tv_nsec = 500000000L;
+        while (!_webui_monitor_should_stop(win)) {
             struct kevent event;
-            int nev = kevent(kq, &change, 1, &event, 1, NULL);
-            if (nev == -1) {
+            int nev = kevent(kq, &change, 1, &event, 1, &monitor_timeout);
+            if (nev == 0) {
+                continue;
+            } else if (nev == -1) {
+                if (errno == EINTR)
+                    continue;
                 #ifdef WEBUI_LOG
                 _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> kevent error\n");
                 #endif
@@ -14583,6 +15701,10 @@ static WEBUI_THREAD_MONITOR {
     #ifdef WEBUI_LOG
     _webui_log_debug("[Core]\t\t[Thread .] _webui_folder_monitor_thread() -> Exit\n");
     #endif
+
+    // Let the window server thread know this monitor is finished
+    _webui_mutex_is_monitor_running(win, WEBUI_MUTEX_SET_FALSE);
+
     WEBUI_THREAD_RETURN
 }
 
