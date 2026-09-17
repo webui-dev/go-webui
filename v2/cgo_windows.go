@@ -1,3 +1,5 @@
+//go:build !webui_console
+
 package webui
 
 // This file provides Windows-specific CGO configuration for WebView2 support.
